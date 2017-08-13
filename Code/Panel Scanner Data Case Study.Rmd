@@ -1,0 +1,203 @@
+---
+title: "Panel Scanner Data Case Study"
+author: "Louise Fallon"
+date: "27 June 2017"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
+library(ggplot2) #for ggplot and plotting functions
+library(mlogit) #for mlogit functions
+library(data.table) # for data.table functions, aggregation etc.
+```
+
+
+##Abstract
+
+This report explores the various business use cases for panel scanner data - a category of retail datasets made up of household product purchases over time across retailers. Historical approaches of using this data are compared to analysis of more traditional aggregate sales data, with a focus on their usefulness to business practitioners. This is supported, where possible, by an example using a sample of Kantar panel scanner data for carbonated beverages, to illustrate possible outputs, business insights, and corresponding operational actions. It is found that aggregate data is more appropriate for calculating own price elasticity, and promotion effectiveness, whereas panel data is more effective for identifying price thresholds and calculating market share and share elasticities, although there are limitations with both approaches. Further use cases are also discussed, in particular on how social data could enrich the existing outputs, or support new business use cases.
+
+##Introduction
+
+Panel scanner data is a category of retail data created by participating households repeatedly scanning products bought across a variety of stores over a period of time. Wideley refered to as UPC panel data, from the Universal Product Code that is scanned in the process, this kind of data became widely available to the field of marketing science throughout the 1980s (Guadagni & Little, 2008) and Figure 1, and has been used for a variety of business use cases (Bucklin & Gupta 1999). The introduction of UPC Data meant that households' purchasing decisions over time could be explored, rather than only aggregate store level sales data which had been predominant.
+
+![Prevalence of "UPC scanner" in google ngram corpus since 1970 (Google ngrams, 2008)](upcscannerngram.png)
+
+There are a wide variety of topics that are relevant to marketing managers (Neslin et al. 1994), many of which have been historically addressed by analysis of panel scanner data, e.g.:
+
+* Calculation of own-price market share elasticity - the % change in market share given a % change in price.
+* Promotional impact - % increase in market share given the existence of a promotion
+* Grouping of Consumers *RESEARCH*
+* Identification of price thresholds *RESEARCH*
+
+
+##Data Description and Pre-processing
+
+```{r loaddata}
+fulldata <- read.csv("../Data/CarbonatesBottlesandCans (confidential).csv", fileEncoding = "latin1")
+```
+
+```{r exploratoryanalysis, eval=FALSE}
+#households
+tmp <- as.data.frame(table(fulldata$HOUSE))
+plot(tmp$Freq)
+boxplot(tmp$Freq)
+mean(tmp$Freq)
+median(tmp$Freq) 
+nrow(tmp) #29214 households
+nrow(tmp[tmp$Freq>=5,])/nrow(tmp) #81% of households have more than 5 observations
+nrow(tmp[tmp$Freq>=50,])/nrow(tmp) #25% of households have more than 50 observations
+
+#stores
+tmp <- as.data.frame(table(fulldata$shop_desc))
+tmp$Var1 <- factor(tmp$Var1, levels = tmp$Var1[order(tmp$Freq, decreasing = TRUE)])
+ggplot(tmp, aes(x=Var1, y=Freq)) + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+nrow(tmp[tmp$Freq>=500,])/nrow(tmp) #95% of stores have more than 500 observations
+
+#categories
+tmp <- as.data.frame(table(fulldata$cat_name))
+tmp$Var1 <- factor(tmp$Var1, levels = tmp$Var1[order(tmp$Freq, decreasing = TRUE)])
+ggplot(tmp, aes(x=Var1, y=Freq)) + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("all categories")
+
+#subcategories
+tmp <- as.data.frame(table(fulldata$sub_cat_name))
+tmp$Var1 <- factor(tmp$Var1, levels = tmp$Var1[order(tmp$Freq, decreasing = TRUE)])
+ggplot(tmp, aes(x=Var1, y=Freq)) + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("top subcategories")
+
+#brands
+tmp <- as.data.frame(table(fulldata$brand_name))
+nrow(tmp) #170 brands
+tmp <- tmp[tmp$Freq > 1.5*mean(tmp$Freq),]
+tmp$Var1 <- factor(tmp$Var1, levels = tmp$Var1[order(tmp$Freq, decreasing = TRUE)])
+ggplot(tmp, aes(x=Var1, y=Freq)) + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#range
+tmp <- as.data.frame(table(fulldata$total_range_name))
+nrow(tmp) #215 ranges
+tmp <- tmp[tmp$Freq > 1.5*mean(tmp$Freq),]
+tmp$Var1 <- factor(tmp$Var1, levels = tmp$Var1[order(tmp$Freq, decreasing = TRUE)])
+ggplot(tmp, aes(x=Var1, y=Freq)) + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#epromdesc
+tmp <- as.data.frame(table(fulldata$epromdesc))
+nrow(tmp) #362 promotions
+tmp <- tmp[tmp$Freq > 1.5*mean(tmp$Freq),]
+tmp$Var1 <- factor(tmp$Var1, levels = tmp$Var1[order(tmp$Freq, decreasing = TRUE)])
+ggplot(tmp, aes(x=Var1, y=Freq)) + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+nrow(fulldata[!fulldata$epromdesc == "No Promotion",])/nrow(fulldata) #59% of observations have some promotion 
+
+#looks like brand aggregates to store standard and value, whereas range has the actual stores (e.g. asda)
+fulldata$date <- paste(fulldata$relweek,fulldata$DAY, sep="-")
+length(unique(fulldata$date)) #364 days
+
+##brand hierarchy (ensure bottom 3 include top 1)
+fulldata$temp = paste(fulldata$total_range_name, fulldata$cat_name, fulldata$sub_cat_name)
+brand <- aggregate(brand_name ~ temp, data=fulldata, FUN=function(x) length(unique(x)))
+head(brand)
+```
+
+##Aggregate Level
+
+Analysing panel scanner data at an aggregate level can help manufacturers to determine effectiveness of non-store campaigns (e.g. generalised online advertising and national television advertising)^[to cite].
+
+
+
+##Individual Level
+
+```{r eval=FALSE}
+data_ind_summary_pre <- fulldata
+
+#prepare data to be aggregated
+#by date, shop, household, range name, cat name and sub cat name
+data_ind_summary_pre$product <- paste(data_ind_summary_pre$total_range_name, data_ind_summary_pre$cat_name, data_ind_summary_pre$sub_cat_name)
+data_ind_summary_pre$key <- paste(data_ind_summary_pre$date, data_ind_summary_pre$shop_desc, data_ind_summary_pre$HOUSE, data_ind_summary_pre$brand)
+data_ind_summary_dt <- data.table(data_ind_summary_pre)
+setkey(data_ind_summary_dt, key)
+
+#aggregate and get:
+#price per unit: count rows and sum net spend
+#brand name tail, sub cat name tail, binary tail
+
+df_ind_summary <- as.data.frame(data_ind_summary_dt[,
+                        j=list(tail(date,1),
+                               tail(HOUSE,1),
+                               tail(shop_desc,1),
+                               tail(product,1),
+                               tail(sub_cat_name,1),
+                               tail(cat_name,1),
+                               length(PACKS),
+                               sum(NETSPEND,1)),
+                        by=key])
+
+head(df_ind_summary)
+
+#for each date & shop, find all possible combos
+#for each week (?)
+
+```
+
+- Fill out to long format by implication
+- Do an mlogit
+- Make a switching matrix & compare
+
+Bucklin et al. (1998) have shown how cross-price elasticities correspond, via a scaling factor, with brand-switching probabilities. 
+
+https://cran.r-project.org/web/packages/mlogit/vignettes/mlogit.pdf
+https://cran.r-project.org/web/packages/mlogit/vignettes/Exercises.pdf
+
+##Limitations
+
+Evidence has shown that marketing executives often make price promotion decisions intuitively rather than relying on the outputs of the empirical methods discussed above (Bogomolova, Szabo & Kennedy, 2017). Many of the theoretical and academic approaches are highly complex, have complex outcomes, and use highly esoteric language e.g. "" . These two facts are very likely linked. The outcomes of retail modelling approaches must be clear and actionable, and ideally the mechanisms to achieve those outcomes must be understandable (Neslin et al., 1994).
+
+However, there is empirical evidence that analysing consumer data, including panel data, has a positive impact on financial performance (Germann et al., 2014).
+
+##Other Applications
+
+Determining the impact of the "assortment effect", i.e. the impact on sales attributable to the number of SKUs within a category (Bucklin et al., 1998). Early uses of this data were to monitor, and assess effectiveness of product launches (Womer, 1944) and using this to predict future sales (Fourt & Woodlock 1960, Baum & Dennis 1961).
+
+Econometric models can also be applied outside of the Consumer Packaged Goods industry, ...
+
+##References
+
+Assmus, G., Farley, J. & Lehmann, D., 1984. How Advertising Affects Sales: Meta-Analysis of Econometric Results. Journal of Marketing Research, 21(1), pp.65–74.
+
+Bogomolova, Szabo & Kennedy, 2017. Retailers' and manufacturers' price-promotion decisions: Intuitive or evidence-based? Journal of Business Research, 76, pp.189–200.
+
+Bucklin, R.E. and Gupta, S. 1999. Commercial Use of UPC Scanner Data: Industry and Academic Perspectives. Marketing Science, 18(3), pp.247–273.
+
+Bucklin, R., Lehmann, D. & Little, J., 1998. From Decision Support to Decision Automation: A 2020 Vision. Marketing Letters, 9(3), pp.235–246.
+
+Bucklin, R.E. et al., 1998. Modelling the effect of purchase quantity on consumer choice of product assortment. Journal of Forecasting, 17(3‐4), pp.281–301.
+
+Dekimpe, M., & Hanssens, D., 1995. The Persistence of Marketing Effects on Sales. Marketing Science, 14(1), pp.1–21. TBI
+
+Germann et al., 2014. Do Retailers Benefit from Deploying Customer Analytics? Journal of Retailing, 90(4), pp.587–593.
+
+Google Ngrams, 2008. Representation of frequency of the terms "marketing science" and "UPC Scanner" in the Google ngram corpus from 1970 to 2008, digital image of data, Google Ngrams, accessed 10th August 2017, <https://books.google.com/ngrams/graph?content=UPC+scanner%2Cmarketing+science&year_start=1970&year_end=2008&corpus=15&smoothing=2&share=&direct_url=t1%3B%2CUPC%20scanner%3B%2Cc0%3B.t1%3B%2Cmarketing%20science%3B%2Cc0>.
+
+Guadagni, P.M. and Little, J.D., 1983. A Logit Model of Brand Choice Calibrated on Scanner Data. Marketing Science, 2(3), pp.203–238.
+
+Guadagni, P.M. and Little, J.D., 2008. A Logit Model of Brand Choice Calibrated on Scanner Data: A 25th Anniversary Perspective. Marketing Science, 27(1), pp.26–28.
+
+Gupta, S., 1988. Impact of Sales Promotions on When, What, and How Much to Buy. Journal of Marketing Research, 25(4), pp.342–355.
+
+Leeflang & Wittink, 1992. Diagnosing competitive reactions using (aggregated) scanner data. International Journal of Research in Marketing, 9(1), pp.39–57.
+
+ (Guadagni and Little, 1987) - marketing impact
+
+Leeflang & Wittink, 2000. Building models for marketing decisions:: Past, present and future. International Journal of Research in Marketing, 17(2), pp.105–126.
+
+Neslin et al., 1994. A research agenda for making scanner data more useful to managers. Marketing Letters, 5(4), pp.395–411. TBI
+
+Russell, G. & Kamakura, W., 1994. Understanding Brand Competition Using Micro and Macro Scanner Data. Journal of Marketing Research, 31(2), pp.289–303. TBI
+
+Seetharaman & Chintagunta, 1998. A model of inertia and variety-seeking with marketing variables. International Journal of Research in Marketing, 15(1), pp.1–17.  TBI
+
+Wittink, D., 2000. The Estimation of Pre- and Postpromotion Dips with Store-Level Scanner Data. Journal of Marketing Research, 37(3), pp.383–395.
+
+
+
+
+
