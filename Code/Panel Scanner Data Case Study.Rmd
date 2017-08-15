@@ -17,7 +17,7 @@ library(data.table) # for data.table functions, aggregation etc.
 
 ##Abstract
 
-This report explores the various business use cases for panel scanner data - a category of retail datasets made up of household product purchases over time across retailers. Historical approaches of using this data are compared to analysis of more traditional aggregate sales data, with a focus on their usefulness to business practitioners. This is supported, where possible, by an example using a sample of Kantar panel scanner data for carbonated beverages, to illustrate possible outputs, business insights, and corresponding operational actions. It is found that aggregate data is more appropriate for calculating own price elasticity, and promotion effectiveness, whereas panel data is more effective for identifying price thresholds and calculating market share and share elasticities, although there are limitations with both approaches. Further use cases are also discussed, in particular on how social data could enrich the existing outputs, or support new business use cases.
+The introduction of panel scanner data led to new analytical methods in the retail industry, this report describes the business value the analysis can provide. This is supported by an example using a sample of Kantar panel scanner data for carbonated beverages, to illustrate possible outputs, business insights, and corresponding operational actions. Choice models are explored in detail, including teqchniques and considerations for calculating brand share elasticity and promotional effectiveness, additional modelling techniques and business use cases are then discussed, ending with the further value that could be added by including social data.
 
 ##Introduction
 
@@ -96,23 +96,24 @@ length(unique(fulldata$date)) #364 days
 fulldata$temp = paste(fulldata$total_range_name, fulldata$cat_name, fulldata$sub_cat_name)
 brand <- aggregate(brand_name ~ temp, data=fulldata, FUN=function(x) length(unique(x)))
 head(brand)
+
+fulldata$volperpack = fulldata$Volume/fulldata$PACKS
+
 ```
 
-##Aggregate Level
+```{r}
+fulldata$date <- paste(fulldata$relweek,fulldata$DAY, sep="-")
+fulldata$volperpack = fulldata$Volume/fulldata$PACKS
 
-Analysing panel scanner data at an aggregate level can help manufacturers to determine effectiveness of non-store campaigns (e.g. generalised online advertising and national television advertising)^[to cite].
+#take data only from the top 4 retailers
+data_ind_summary_pre <- fulldata[fulldata$shop_desc %in% c("1TESCO","2ASDA","3SAINSBURYS","4MORRISONS") &
+                                fulldata$cat_name %in% c("Canned Colas","Canned Lemonade","Canned Other Flavours"),]
 
-
-
-##Individual Level
-
-```{r eval=FALSE}
-data_ind_summary_pre <- fulldata
 
 #prepare data to be aggregated
 #by date, shop, household, range name, cat name and sub cat name
-data_ind_summary_pre$product <- paste(data_ind_summary_pre$total_range_name, data_ind_summary_pre$cat_name, data_ind_summary_pre$sub_cat_name)
-data_ind_summary_pre$key <- paste(data_ind_summary_pre$date, data_ind_summary_pre$shop_desc, data_ind_summary_pre$HOUSE, data_ind_summary_pre$brand)
+data_ind_summary_pre$product <- paste(data_ind_summary_pre$total_range_name, data_ind_summary_pre$sub_cat_name)
+data_ind_summary_pre$key <- paste(data_ind_summary_pre$date, data_ind_summary_pre$shop_desc, data_ind_summary_pre$HOUSE, data_ind_summary_pre$product)
 data_ind_summary_dt <- data.table(data_ind_summary_pre)
 setkey(data_ind_summary_dt, key)
 
@@ -127,41 +128,123 @@ df_ind_summary <- as.data.frame(data_ind_summary_dt[,
                                tail(product,1),
                                tail(sub_cat_name,1),
                                tail(cat_name,1),
-                               length(PACKS),
+                               tail(brand_name,1),
+                               sum(Volume),
                                sum(NETSPEND,1)),
                         by=key])
 
-head(df_ind_summary)
+colnames(df_ind_summary) <- c("key","date","HOUSE","shop_desc","product",
+                             "sub_cat_name","cat_name", "brand_name", 
+                             "Volume", "NETSPEND")
+df_ind_summary$priceper330ml <- df_ind_summary$NETSPEND /  df_ind_summary$Volume *.33
+```
 
-#for each date & shop, find all possible combos
-#for each week (?)
+```{r}
+df_ind_summary$product[df_ind_summary$brand_name == "PL_Standard" & 
+                         df_ind_summary$sub_cat_name == "Diet"] <- "Own Brand Diet"
+df_ind_summary$product[df_ind_summary$brand_name == "PL_Standard" &
+                         df_ind_summary$sub_cat_name == "Regular"] <- "Own Brand Regular"
+
+tmp <- as.data.frame(table(df_ind_summary$product))
+tmp$Var1 <- factor(tmp$Var1, levels = tmp$Var1[order(tmp$Freq, decreasing = TRUE)])
+tmp <- tmp[order(tmp$Freq, decreasing = TRUE),]
+tmpprods <- head(tmp$Var1,50)
+
+df_ind_summary$product[!df_ind_summary$product %in% tmpprods] <- "Other"
 
 ```
 
-- Fill out to long format by implication
-- Do an mlogit
-- Make a switching matrix & compare
+The data is made up of around 29,000 UK households' purchases of canned and bottled carbonates and soft drinks over a year. The following analysis uses only data from the top 4 retailers, as more reliable data is available on product availability for these stores. The full data is made up of varying sized packages of beverages, including, for example, 330ml cans and 2 litre bottles. The analysis is made meaningful by focusing only on canned drinks, to focus on true competitors. Own brand products are treated as one product, and low volume brands are grouped together to narrow the data to 40 products. The price range for these products can be seen in the figure below, energy drinks such as Red Bull have a higher price than average, and interestingly, it does not seem like own brand products have a lower price than average, which may be due to the promotional pricing often used by major brands^[Citation needed]:
 
+```{r}
+producttable <- as.data.frame(table(df_ind_summary$product))
+producttable <- producttable[order(producttable$Freq, decreasing = TRUE),]
+df_ind_summary$product <- factor(df_ind_summary$product, levels = rev(producttable$Var1))
+
+ggplot(df_ind_summary, aes(x= product, y=priceper330ml, col=product)) + 
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(legend.position = "none") + 
+  xlab("Brand") + ylab("Price per 330ml")  + coord_flip()
+```
+
+The data had to be processed to identify which products were available in each store over the time period. Ideally this data would be available already, as the imputation is not necessarily fully comprehensive. After processing the dataset then constitutes a set of revealed preferences - the purchases that consumers actually made, this is opposed to stated preferences - the products that the consumers state are best. This structure of data allows a mixed multinomial logit model to be run, which became the default after the seminal work of Guadagni & Little (1983). This is an econometric tool that estimates the utility of each product (j) for each consumer (i) $$V_{i,j}$$ as a linear combination of explanatory variables, either belonging to the household (e.g.  income), or the properties of the product (e.g. price):
+
+$V_{i,j} = \beta_1 + \beta_2 x_{i} +  \beta_3 x_{i,j} + \dots$
+
+by modeling the  probability of making a particular choice as per the logit equation, where the probability of consumer i choosing product j is a function of the relative utility:
+
+$Prob_{i,j} = \frac{e^{V_{i,j}}}{\Sigma_{(k \in K)} e^{V_{i,k}}}$
+
+The key product level explanatory variables are price and promotion, which are supplemented by household level variables calculated from the data. The dataset did not already contain household-specific variables such as income or number of children, to be used as additional explanatory variables in the model, despite the fact they are often included as part of a UPC dataset. However, as there was a large enough time window, it was possible to calculate household-level variables from an initialisation period. In this case a loyalty variable was calculated: the proportion spent on each brand in the first month. An average spend variable was also calculated: the average vaule spent in the category per week over the first month. These variables account for some of the heterogeneity across households.
+
+```{r , eval=FALSE}
+df_ind_summary$index = 1: nrow(df_ind_summary)
+  
+findfunction <- function(x, date, shop) {
+  if (sum(df_ind_summary$product == x["Var1"] &
+                     df_ind_summary$date == date &
+                     df_ind_summary$shop == shop) > 0) {return(max(df_ind_summary$priceper330ml[
+                     df_ind_summary$product == x["Var1"] &
+                     df_ind_summary$date == date &
+                     df_ind_summary$shop == shop]))
+                     } else {return(0)}
+}
+
+f <- function(x, output) {
+    print(as.numeric(x["index"])/119742)
+    print(x)
+    return(apply(producttable,1, findfunction, x["date"], x["shop_desc"]))
+ }
+
+df_ind_summary_wide <- apply(df_ind_summary, 1, f)
+rownames(df_ind_summary_wide) <- producttable$Var1
+write.csv(df_ind_summary_wide,"df_ind_summary_wide.csv")
+
+##get prices
+```
+
+The coefficient on loyalty is positive, this aligns with the expectation that consumers are more likely to purchase a product that they previously showed loyalty to. This coefficient is important for manufacturers to understand about their category, if this coefficient is high, or is increasing over time, then this indicates that brand loyalty is particularly importance (or growing in importance), so more focus should be placed on improving brand image, or particularly on engaging consumers early in their lifecycle, e.g. by targeting mothers or children. Although sugary drink manufacturers may need to be wary of this approach.
+
+Brand share elasticity and cross elasticity can then be calculated from the price coefficient, after calculating the marginal effects and dividing by the percentage price change (Calculation details can be found in Appendix 1). The consumer decision point that this is modeling is after the consumer has chosen what to buy (e.g. a canned drink), and how much to buy, which brand they then choose. Focussing on pepsi, we see that X has a highly cross-price elasticity, implying that this is a strong competitor. This information is useful for pricing strategies, in particular the distinction between Every Day Low Prices (EDLP) strategies compared to promotional strategies (Shankar & Krishnamurthi, 1996). At a more operational level, price elasticity information is also useful for manufacturing company account managers and retailer buyers, who work together regularly to define promotional prices.
+
+Previously, retailers and manufacturers had access to aggregate level sales data, so they were able to calculate overall price elasticity and cross elasticity between brands. This analysis is still useful, however the additional insights that the panel scanner 
+
+In terms of predicting consumer choice there are additional methods that are available e.g. a multinomial choice neutral network (CRAN,  2016), however these lack interpretability in terms of which factors are contributing to choice  ^[TO CHECK], which are really the key insights for business practicitioners. It is not much use to be able to predict an individual's choice, but rather to understand the mechanisms behind that choice. The neural network approach may be used, however, in simulations of consumer choice given a different competitive price structure, e.g. to see what the expected aggregate response would be given a change in price of one of the products.
+
+#Switching Matrix
 Bucklin et al. (1998) have shown how cross-price elasticities correspond, via a scaling factor, with brand-switching probabilities. 
 
-https://cran.r-project.org/web/packages/mlogit/vignettes/mlogit.pdf
-https://cran.r-project.org/web/packages/mlogit/vignettes/Exercises.pdf
+##Extension to full choice model
+The multinomial logit model fit above is focusing on brand choice, and ignores other key business questions such as: what are the drivers for how often consumers come to the shop, and for how much they buy when they are there. For this, a . The elasticity that is produced by this model is total purchase elasticity, and this can be added to the brand choice elasticity from the multinomial logit model to get the overall elasticity. (reference xxxx)
+
+#Modelling considerations
+
+There is evidence that suggests that the price elasticity may also change across the life-cycle of the product (Simon 1979, Parker 1992), Bijmolt, Heerde and Pieters (2005) found that price elasticities in general have been increasing over time, whereas share elasticities have remained quite constant. Elasticities may also be store dependent (Hoch et al 1995). How these mechanisms relate have key business implications, such as how to structure a pricing strategy over a product lifecycle (Bijmolt, Heerde and Pieters, 2005), and how to manage promotional pricing across retailers.
+
+The functional form of the model may also be 
+
+##Aggregate Level
+
+Analysing panel scanner data at an aggregate level can help manufacturers to determine effectiveness of non-store campaigns (e.g. generalised online advertising and national television advertising)^[to cite].
 
 ##Limitations
 
 Evidence has shown that marketing executives often make price promotion decisions intuitively rather than relying on the outputs of the empirical methods discussed above (Bogomolova, Szabo & Kennedy, 2017). Many of the theoretical and academic approaches are highly complex, have complex outcomes, and use highly esoteric language e.g. "" . These two facts are very likely linked. The outcomes of retail modelling approaches must be clear and actionable, and ideally the mechanisms to achieve those outcomes must be understandable (Neslin et al., 1994).
 
-However, there is empirical evidence that analysing consumer data, including panel data, has a positive impact on financial performance (Germann et al., 2014).
+However, there is empirical evidence that analysing consumer data, including panel data, has a positive impact on company financial performance (Germann et al., 2014).
 
 ##Other Applications
 
 Determining the impact of the "assortment effect", i.e. the impact on sales attributable to the number of SKUs within a category (Bucklin et al., 1998). Early uses of this data were to monitor, and assess effectiveness of product launches (Womer, 1944) and using this to predict future sales (Fourt & Woodlock 1960, Baum & Dennis 1961).
 
-Econometric models can also be applied outside of the Consumer Packaged Goods industry, ...
+Econometric models can also be applied outside of the Consumer Packaged Goods industry, 
 
 ##References
 
 Assmus, G., Farley, J. & Lehmann, D., 1984. How Advertising Affects Sales: Meta-Analysis of Econometric Results. Journal of Marketing Research, 21(1), pp.65–74.
+
+Bijmolt, T.H., Heerde, H.J.V. and Pieters, R.G., 2005. New empirical generalizations on the determinants of price elasticity. Journal of marketing research, 42(2), pp.141-156.
 
 Bogomolova, Szabo & Kennedy, 2017. Retailers' and manufacturers' price-promotion decisions: Intuitive or evidence-based? Journal of Business Research, 76, pp.189–200.
 
@@ -170,6 +253,8 @@ Bucklin, R.E. and Gupta, S. 1999. Commercial Use of UPC Scanner Data: Industry a
 Bucklin, R., Lehmann, D. & Little, J., 1998. From Decision Support to Decision Automation: A 2020 Vision. Marketing Letters, 9(3), pp.235–246.
 
 Bucklin, R.E. et al., 1998. Modelling the effect of purchase quantity on consumer choice of product assortment. Journal of Forecasting, 17(3‐4), pp.281–301.
+
+CRAN [https://cran.r-project.org/web/packages/nnet/nnet.pdf]
 
 Dekimpe, M., & Hanssens, D., 1995. The Persistence of Marketing Effects on Sales. Marketing Science, 14(1), pp.1–21. TBI
 
@@ -183,6 +268,8 @@ Guadagni, P.M. and Little, J.D., 2008. A Logit Model of Brand Choice Calibrated 
 
 Gupta, S., 1988. Impact of Sales Promotions on When, What, and How Much to Buy. Journal of Marketing Research, 25(4), pp.342–355.
 
+Hoch, S. et al., 1995. Determinants of Store-Level Price Elasticity. Journal of Marketing Research, 32(1), p.17.
+
 Leeflang & Wittink, 1992. Diagnosing competitive reactions using (aggregated) scanner data. International Journal of Research in Marketing, 9(1), pp.39–57.
 
  (Guadagni and Little, 1987) - marketing impact
@@ -191,13 +278,27 @@ Leeflang & Wittink, 2000. Building models for marketing decisions:: Past, presen
 
 Neslin et al., 1994. A research agenda for making scanner data more useful to managers. Marketing Letters, 5(4), pp.395–411. TBI
 
+Parker, P., 1992. Price Elasticity Dynamics Over the Adoption Life Cycle. Journal of Marketing Research, 29(3), p.358.
+
 Russell, G. & Kamakura, W., 1994. Understanding Brand Competition Using Micro and Macro Scanner Data. Journal of Marketing Research, 31(2), pp.289–303. TBI
 
 Seetharaman & Chintagunta, 1998. A model of inertia and variety-seeking with marketing variables. International Journal of Research in Marketing, 15(1), pp.1–17.  TBI
 
+Simon, H., 1979. Dynamics of Price Elasticity and Brand Life Cycles: An Empirical Study. Journal of Marketing Research, 16(4), p.439.
+
+Shankar V. & Krishnamurthi, L., 1996. Relating price sensitivity to retailer promotional variables and pricing policy: an empirical analysis. Journal of Retailing, 72(3), pp.249–272.
+
 Wittink, D., 2000. The Estimation of Pre- and Postpromotion Dips with Store-Level Scanner Data. Journal of Marketing Research, 37(3), pp.383–395.
 
+A Reference Price Model of Brand Choice for Frequently Purchased Products
 
+
+https://cran.r-project.org/web/packages/mlogit/vignettes/mlogit.pdf
+https://cran.r-project.org/web/packages/mlogit/vignettes/Exercises.pdf
+
+http://environment.yale.edu/gillingham/GillinghamTsvetanov_SolarDemandCT.pdf logit trunc poiss
+
+Anon, 2004. Multiple Discreteness and Product Differentiation: Demand for Carbonated Soft Drinks. Marketing Science, 23(1), pp.66–81.
 
 
 
