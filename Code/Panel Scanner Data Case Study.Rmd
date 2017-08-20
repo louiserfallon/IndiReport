@@ -12,6 +12,8 @@ knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
 library(ggplot2) #for ggplot and plotting functions
 library(mlogit) #for mlogit functions
 library(data.table) # for data.table functions, aggregation etc.
+library(gsubfn)
+
 ```
 
 
@@ -105,8 +107,8 @@ fulldata$volperpack = fulldata$Volume/fulldata$PACKS
 fulldata$date <- paste(fulldata$relweek,fulldata$DAY, sep="-")
 fulldata$volperpack = fulldata$Volume/fulldata$PACKS
 
-#take data only from the top 4 retailers
-data_ind_summary_pre <- fulldata[fulldata$shop_desc %in% c("1TESCO","2ASDA","3SAINSBURYS","4MORRISONS") &
+#take data only from the top retailer
+data_ind_summary_pre <- fulldata[fulldata$shop_desc %in% c("1TESCO") &
                                 fulldata$cat_name %in% c("Canned Colas","Canned Lemonade","Canned Other Flavours"),]
 
 
@@ -148,13 +150,13 @@ df_ind_summary$product[df_ind_summary$brand_name == "PL_Standard" &
 tmp <- as.data.frame(table(df_ind_summary$product))
 tmp$Var1 <- factor(tmp$Var1, levels = tmp$Var1[order(tmp$Freq, decreasing = TRUE)])
 tmp <- tmp[order(tmp$Freq, decreasing = TRUE),]
-tmpprods <- head(tmp$Var1,50)
+tmpprods <- head(tmp$Var1,22)
 
 df_ind_summary$product[!df_ind_summary$product %in% tmpprods] <- "Other"
 
 ```
 
-The data is made up of around 29,000 UK households' purchases of canned and bottled carbonates and soft drinks over a year. The following analysis uses only data from the top 4 retailers, as more reliable data is available on product availability for these stores. The full data is made up of varying sized packages of beverages, including, for example, 330ml cans and 2 litre bottles. The analysis is made meaningful by focusing only on canned drinks, to focus on true competitors. Own brand products are treated as one product, and low volume brands are grouped together to narrow the data to 40 products. The price range for these products can be seen in the figure below, energy drinks such as Red Bull have a higher price than average, and interestingly, it does not seem like own brand products have a lower price than average, which may be due to the promotional pricing often used by major brands^[Citation needed]:
+The data is made up of around 29,000 UK households' purchases of canned and bottled carbonates and soft drinks over a year. The following analysis uses only data from the top retailer, as more reliable data is available on product availability for this store, as well as reducing computational run-time. The full data is made up of varying sized packages of beverages, including, for example, 330ml cans and 2 litre bottles. The analysis is made meaningful by focusing only on canned drinks, to focus on true competitors. Own brand products are treated as one product, and low volume brands are grouped together to narrow the data to 25 products. The price range for these products can be seen in the figure below, energy drinks such as Red Bull have a higher price than average, and interestingly, it does not seem like own brand products have a lower price than average, which may be due to the promotional pricing often used by major brands ^[Citation needed]:
 
 ```{r}
 producttable <- as.data.frame(table(df_ind_summary$product))
@@ -178,13 +180,14 @@ $Prob_{i,j} = \frac{e^{V_{i,j}}}{\Sigma_{(k \in K)} e^{V_{i,k}}}$
 
 The key product level explanatory variables are price and promotion, which are supplemented by household level variables calculated from the data. The dataset did not already contain household-specific variables such as income or number of children, to be used as additional explanatory variables in the model, despite the fact they are often included as part of a UPC dataset. However, as there was a large enough time window, it was possible to calculate household-level variables from an initialisation period. In this case a loyalty variable was calculated: the proportion spent on each brand in the first month. An average spend variable was also calculated: the average vaule spent in the category per week over the first month. These variables account for some of the heterogeneity across households.
 
-```{r , eval=FALSE}
+```{r, eval=FALSE}
 df_ind_summary$index = 1: nrow(df_ind_summary)
   
+#Gets the prices for all products in that shop on that date
 findfunction <- function(x, date, shop) {
   if (sum(df_ind_summary$product == x["Var1"] &
                      df_ind_summary$date == date &
-                     df_ind_summary$shop == shop) > 0) {return(max(df_ind_summary$priceper330ml[
+                     df_ind_summary$shop == shop) > 0) {return(mean(df_ind_summary$priceper330ml[
                      df_ind_summary$product == x["Var1"] &
                      df_ind_summary$date == date &
                      df_ind_summary$shop == shop]))
@@ -200,8 +203,69 @@ f <- function(x, output) {
 df_ind_summary_wide <- apply(df_ind_summary, 1, f)
 rownames(df_ind_summary_wide) <- producttable$Var1
 write.csv(df_ind_summary_wide,"df_ind_summary_wide.csv")
+```
 
-##get prices
+```{r loadwidedata}
+df_ind_summary_wide <- read.csv("df_ind_summary_wide.csv")
+df_ind_summary_wide_matrix = data.matrix(df_ind_summary_wide[2:dim(df_ind_summary_wide)[2]])
+```
+
+```{r processwidedata}
+#Make price dataframe by transposing and adding "price." to column names
+df_ind_summary_wide_t <- data.frame(t(df_ind_summary_wide_matrix))
+names(df_ind_summary_wide_t) <- paste("price.", gsubfn(".",
+                                             list(" " = "", "." = "", "(" = "", ")" = ""),
+                                             as.character(df_ind_summary_wide[,1])), sep="")
+#Make availability dataframe by checking if price = 0 and adding ".availability" to col names
+availability <- data.frame(apply(df_ind_summary_wide_matrix, 1, function(x) {x != 0}))
+names(availability) <- paste("availability.",gsubfn(".",
+                                    list(" " = "", "." = "", "(" = "", ")" = ""),
+                                    as.character(df_ind_summary_wide[,1])), sep="")
+##concatenate required fields for mlogit
+df_ind_summary_extended <- cbind(df_ind_summary[,c("date","shop_desc","product","HOUSE")],
+                                 df_ind_summary_wide_t,availability)
+
+df_ind_summary_extended$product <- gsubfn(".",
+                                          list(" " = "", "." = "", "(" = "", ")" = ""),
+                                          as.character(df_ind_summary_extended$product))
+```
+
+```{r}
+#takes 1 min to run
+#create data frame with all data, including availability (in wide format)
+temp_mlogit <- mlogit.data(df_ind_summary_extended,
+                           shape = "wide",
+                           varying = c(price=5:27,
+                                       availability=28:50),
+                           choice = "product", id.var = "HOUSE")
+#subset only to the products that are available
+temp_available <-  temp_mlogit[temp_mlogit$availability ,] 
+temp_available <- temp_available[ , !(names(temp_available) %in% "availability")]
+
+head(temp_available,50)
+
+#and resend it through mlogit.data with format long 
+csds.data <- mlogit.data(temp_available , choice = 'product', shape = "long" , alt.var = "alt" ,  chid.var = "chid")
+```
+
+```{r}
+#takes 1h30 to run
+Sys.time()
+csds.ml <- mlogit(product ~ price, csds.data)
+Sys.time()
+summary(csds.ml)
+
+save(csds.ml, file="csdsml2.RData")
+```
+
+```{r}
+#load("csdsml.RData")
+
+##Own Price Elasticity
+for (product in csds.data){
+  mean(csds.ml$coefficients["price"]*csds.ml$probabilities[,"7UpDiet"]*(1-csds.ml$probabilities[,"7UpDiet"])) /
+  mean(csds.ml$probabilities[,"7UpDiet"])/(1/mean(csds.data$price[csds.data$alt=="7UpDiet"]))}
+
 ```
 
 The coefficient on loyalty is positive, this aligns with the expectation that consumers are more likely to purchase a product that they previously showed loyalty to. This coefficient is important for manufacturers to understand about their category, if this coefficient is high, or is increasing over time, then this indicates that brand loyalty is particularly importance (or growing in importance), so more focus should be placed on improving brand image, or particularly on engaging consumers early in their lifecycle, e.g. by targeting mothers or children. Although sugary drink manufacturers may need to be wary of this approach.
@@ -216,13 +280,21 @@ In terms of predicting consumer choice there are additional methods that are ava
 Bucklin et al. (1998) have shown how cross-price elasticities correspond, via a scaling factor, with brand-switching probabilities. 
 
 ##Extension to full choice model
-The multinomial logit model fit above is focusing on brand choice, and ignores other key business questions such as: what are the drivers for how often consumers come to the shop, and for how much they buy when they are there. For this, a . The elasticity that is produced by this model is total purchase elasticity, and this can be added to the brand choice elasticity from the multinomial logit model to get the overall elasticity. (reference xxxx)
+The multinomial logit model fit above is focusing on brand choice, and ignores other key business questions such as: what are the drivers for how often consumers come to the shop, and for how much they buy when they are there. For this, a P . The quantity elasticity that is produced by this model is total purchase elasticity, and this can be added to the brand choice elasticity from the multinomial logit model to get the overall elasticity. (reference xxxx).
 
 #Modelling considerations
+
+The multinomial logit is a model of choice within a category, assuming that the consumer has already decided to purchase within that category. For this reason the choice of "category" and which products to include within that category is incredibly important: "Should different flavors, or colors, or sizes be treated as different products or lumped together?" (Guadagni & Little 1983). 
+
+Additional loyalty variables could also be calculated
+
+Much research has been done using UPC scanner data to produce models for consumer purchasing decisions, and has uncovered many additional subtleties and complexities that can be encorporated into the models. The models can be extended to include multiple "states" of consumer behaviour, e.g. planned purchases and spontaneous purchases. (Bucklin and Little, 1991) .
 
 There is evidence that suggests that the price elasticity may also change across the life-cycle of the product (Simon 1979, Parker 1992), Bijmolt, Heerde and Pieters (2005) found that price elasticities in general have been increasing over time, whereas share elasticities have remained quite constant. Elasticities may also be store dependent (Hoch et al 1995). How these mechanisms relate have key business implications, such as how to structure a pricing strategy over a product lifecycle (Bijmolt, Heerde and Pieters, 2005), and how to manage promotional pricing across retailers.
 
 The functional form of the model may also be 
+
+Each of these additional elements lead to a more refined model, catering for additional consumer considerations and behaviours, unfortunately in most cases they also lead to additional computational complexity, and if care is not taken, to results that are less easy to interpret by a retail professional. 
 
 ##Aggregate Level
 
@@ -250,9 +322,13 @@ Bogomolova, Szabo & Kennedy, 2017. Retailers' and manufacturers' price-promotion
 
 Bucklin, R.E. and Gupta, S. 1999. Commercial Use of UPC Scanner Data: Industry and Academic Perspectives. Marketing Science, 18(3), pp.247–273.
 
+Bucklin, R.E. and Lattin, J.M., 1991. A two-state model of purchase incidence and brand choice. Marketing Science, 10(1), pp.24-39.
+
 Bucklin, R., Lehmann, D. & Little, J., 1998. From Decision Support to Decision Automation: A 2020 Vision. Marketing Letters, 9(3), pp.235–246.
 
 Bucklin, R.E. et al., 1998. Modelling the effect of purchase quantity on consumer choice of product assortment. Journal of Forecasting, 17(3‐4), pp.281–301.
+
+Cameron, A.C. & Trivedi, P.K., 1986. Econometric models based on count data. Comparisons and applications of some estimators and tests. Journal of Applied Econometrics, 1(1), pp.29–53.
 
 CRAN [https://cran.r-project.org/web/packages/nnet/nnet.pdf]
 
@@ -263,6 +339,8 @@ Germann et al., 2014. Do Retailers Benefit from Deploying Customer Analytics? Jo
 Google Ngrams, 2008. Representation of frequency of the terms "marketing science" and "UPC Scanner" in the Google ngram corpus from 1970 to 2008, digital image of data, Google Ngrams, accessed 10th August 2017, <https://books.google.com/ngrams/graph?content=UPC+scanner%2Cmarketing+science&year_start=1970&year_end=2008&corpus=15&smoothing=2&share=&direct_url=t1%3B%2CUPC%20scanner%3B%2Cc0%3B.t1%3B%2Cmarketing%20science%3B%2Cc0>.
 
 Guadagni, P.M. and Little, J.D., 1983. A Logit Model of Brand Choice Calibrated on Scanner Data. Marketing Science, 2(3), pp.203–238.
+
+Guadagni, P.M. and Little, J.D., 1998. When and what to buy: a nested logit model of coffee purchase. Journal of Forecasting, 17(3‐4), pp.303–326.
 
 Guadagni, P.M. and Little, J.D., 2008. A Logit Model of Brand Choice Calibrated on Scanner Data: A 25th Anniversary Perspective. Marketing Science, 27(1), pp.26–28.
 
@@ -301,4 +379,5 @@ http://environment.yale.edu/gillingham/GillinghamTsvetanov_SolarDemandCT.pdf log
 Anon, 2004. Multiple Discreteness and Product Differentiation: Demand for Carbonated Soft Drinks. Marketing Science, 23(1), pp.66–81.
 
 
+http://www.jstor.org.iclibezp1.cc.ic.ac.uk/stable/pdf/184197.pdf?refreqid=excelsior:faed1bd872601514dca3256b0564c54e
 
