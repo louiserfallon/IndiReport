@@ -7,15 +7,14 @@ output:
   pdf_document: default
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
+```{r setup, include=FALSE. cache=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
 library(ggplot2) #for ggplot and plotting functions
 library(mlogit) #for mlogit functions
 library(data.table) # for data.table functions, aggregation etc.
 library(gsubfn)
 
 ```
-
 
 ##Abstract
 
@@ -178,9 +177,40 @@ by modeling the  probability of making a particular choice as per the logit equa
 
 $Prob_{i,j} = \frac{e^{V_{i,j}}}{\Sigma_{(k \in K)} e^{V_{i,k}}}$
 
-The key product level explanatory variables are price and promotion, which are supplemented by household level variables calculated from the data. The dataset did not already contain household-specific variables such as income or number of children, to be used as additional explanatory variables in the model, despite the fact they are often included as part of a UPC dataset. However, as there was a large enough time window, it was possible to calculate household-level variables from an initialisation period. In this case a loyalty variable was calculated: the proportion spent on each brand in the first month. An average spend variable was also calculated: the average vaule spent in the category per week over the first month. These variables account for some of the heterogeneity across households.
+The key product level explanatory variables are price and promotion, which are supplemented by household level variables calculated from the data. The dataset did not already contain household-specific variables such as income or number of children, to be used as additional explanatory variables in the model, despite the fact they are often included as part of a UPC dataset. However, as there was a large enough time window, it was possible to calculate household-level variables from an initialisation period of the initialisation period (the first 60 days). In this case a loyalty variable was calculated: the proportion spent on each brand in the initialisation periof. An average spend variable was also calculated: the average vaule spent in the category per week over the first month. Finally, the total purchase incidence was calculated: the number of times the household made purchases in the first month. The data was then limited to households that made some purchases in the initialisation period, to avoid erroneous missing data for these initialisation variables. These variables account for some of the heterogeneity across households.
+
+```{r}
+initialisationperiod <- unique(df_ind_summary$date)[1:60]
+df_ind_summary_init <- df_ind_summary[df_ind_summary$date %in% initialisationperiod,]
+
+#get list of households in initialisation period
+init_households <- unique(df_ind_summary_init$HOUSE)
+
+#get total purchase incidences
+totalpurchases <- data.frame(table(df_ind_summary_init$HOUSE))
+colnames(totalpurchases) <- c("HOUSE","purchasefreq")
+
+#get average purchase total
+avgspend <- aggregate(NETSPEND ~ HOUSE, data = df_ind_summary_init, mean)
+colnames(avgspend) <- c("HOUSE","avgspend")
+
+#get proportion of spend per product
+df_ind_summary_init_reshape <- dcast(data = df_ind_summary_init,
+                                    formula = HOUSE~product,
+                                    fun.aggregate = sum,value.var = "NETSPEND")
+
+brandproportions <- cbind(id = df_ind_summary_init_reshape[, 1], df_ind_summary_init_reshape[, -1]/rowSums(df_ind_summary_init_reshape[, -1]))
+
+colnames(brandproportions) <- paste("loyalty.",gsubfn(".",list(" " = "", "." = "", "(" = "", ")" = ""), colnames(brandproportions)), sep="")
+colnames(brandproportions)[1] <- "HOUSE"
+head(brandproportions)
+
+##TODO: loyalty boxplots?
+```
 
 ```{r, eval=FALSE}
+df_ind_summary <- df_ind_summary[!df_ind_summary$date %in% initialisationperiod]
+#Impute prices and availability from data
 df_ind_summary$index = 1: nrow(df_ind_summary)
   
 #Gets the prices for all products in that shop on that date
@@ -205,12 +235,12 @@ rownames(df_ind_summary_wide) <- producttable$Var1
 write.csv(df_ind_summary_wide,"df_ind_summary_wide.csv")
 ```
 
-```{r loadwidedata}
+```{r loadwidedata, eval=FALSE}
 df_ind_summary_wide <- read.csv("df_ind_summary_wide.csv")
 df_ind_summary_wide_matrix = data.matrix(df_ind_summary_wide[2:dim(df_ind_summary_wide)[2]])
 ```
 
-```{r processwidedata}
+```{r processwidedata, eval=FALSE}
 #Make price dataframe by transposing and adding "price." to column names
 df_ind_summary_wide_t <- data.frame(t(df_ind_summary_wide_matrix))
 names(df_ind_summary_wide_t) <- paste("price.", gsubfn(".",
@@ -228,9 +258,14 @@ df_ind_summary_extended <- cbind(df_ind_summary[,c("date","shop_desc","product",
 df_ind_summary_extended$product <- gsubfn(".",
                                           list(" " = "", "." = "", "(" = "", ")" = ""),
                                           as.character(df_ind_summary_extended$product))
+df_ind_summary_extended <- df_ind_summary_extended[!df_ind_summary_extended$date %in% initialisationperiod,]
+df_ind_summary_extended <- df_ind_summary_extended[df_ind_summary_extended$HOUSE %in% init_households,]
+df_ind_summary_extended <- merge(df_ind_summary_extended, totalpurchases)
+df_ind_summary_extended <- merge(df_ind_summary_extended, avgspend)
+df_ind_summary_extended <- merge(df_ind_summary_extended, brandproportions)
 ```
 
-```{r}
+```{r eval=FALSE}
 #takes 1 min to run
 #create data frame with all data, including availability (in wide format)
 temp_mlogit <- mlogit.data(df_ind_summary_extended,
@@ -246,9 +281,11 @@ head(temp_available,50)
 
 #and resend it through mlogit.data with format long 
 csds.data <- mlogit.data(temp_available , choice = 'product', shape = "long" , alt.var = "alt" ,  chid.var = "chid")
+
+save(csds.data, file="csdsdata.RData")
 ```
 
-```{r}
+```{r eval=FALSE}
 #takes 1h30 to run
 Sys.time()
 csds.ml <- mlogit(product ~ price, csds.data)
@@ -258,14 +295,31 @@ summary(csds.ml)
 save(csds.ml, file="csdsml2.RData")
 ```
 
-```{r}
+```{R, eval = FALSE}
 load("csdsml.RData")
+load("csdsdata.RData")
+```
 
-##Own Price Elasticity
-for (product in csds.data$alt){
-  mean(csds.ml$coefficients["price"]*csds.ml$probabilities[,"7UpDiet"]*(1-csds.ml$probabilities[,"7UpDiet"])) /
-  mean(csds.ml$probabilities[,"7UpDiet"])/(1/mean(csds.data$price[csds.data$alt=="7UpDiet"]))}
+```{r, eval= FALSE}
+##Calculate Elasticity Matrix
+elastdf <- setNames(data.frame(matrix(ncol = length(unique(csds.data$alt)), nrow = 0)), unique(csds.data$alt))
+for (product1 in unique(csds.data$alt)){
+  elast <- vector()
+  for (product2 in unique(csds.data$alt)){
+    #Calculate own share elasticity
+    if (product1 == product2) {
+      elast.temp = mean(csds.ml$coefficients["price"]*csds.ml$probabilities[,product1]*(1-csds.ml$probabilities[,product1])) /
+        mean(csds.ml$probabilities[,product1])/(1/mean(csds.data$price[csds.data$alt==product1])) } else {
+    #Calculate cross share elasticity
+      elast.temp = -1*mean(csds.ml$coefficients["price"]*csds.ml$probabilities[,product1]*csds.ml$probabilities[,product2]) /
+        mean(csds.ml$probabilities[,product1])/(1/mean(csds.data$price[csds.data$alt==product2])) }
+    elast <- c(elast,elast.temp)}
+  elastdf[product1,] <- elast}
+elastdf
+```
 
+```{r}
+##todo: clout v vulnerability plot
 ```
 
 The coefficient on loyalty is positive, this aligns with the expectation that consumers are more likely to purchase a product that they previously showed loyalty to. This coefficient is important for manufacturers to understand about their category, if this coefficient is high, or is increasing over time, then this indicates that brand loyalty is particularly importance (or growing in importance), so more focus should be placed on improving brand image, or particularly on engaging consumers early in their lifecycle, e.g. by targeting mothers or children. Although sugary drink manufacturers may need to be wary of this approach.
