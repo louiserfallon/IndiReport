@@ -2,8 +2,10 @@
 title: "Business Use Cases of Panel Scanner Data in the Retail Industry"
 author: 'Louise Fallon - CID: 01262763'
 output:
-  word_document: default
   pdf_document: default
+  word_document: default
+subtitle: 'Word Count: 5338'
+header-includes: \usepackage{float}
 ---
 
 ```{r setup, include=FALSE}
@@ -16,21 +18,26 @@ library(knitr) #for kable markdown tables
 source("mlogittotable.R")
 ```
 
-\newpage
+\
+\
+\
+
 
 ##Abstract
 
-The introduction of panel scanner data led to new analytical methods in the retail industry. This report describes, if an analyst has access to panel scanner data for a manufacturer or retailer, what analysis can be done, how simple is this to do, and what business value it could provide. This is supported by an example using a sample of panel scanner data for carbonated beverages to illustrate possible outputs, insights, and corresponding business actions. Choice models are explored in detail, including techniques for calculating brand share elasticity and promotional effectiveness. Extensions to the model and alternative modelling approaches are explored, and inclusion of social media data is discussed. 
+The introduction of panel scanner data led to new analytical methods in the retail industry. This report describes, for the case where an analyst has access to panel scanner data for a manufacturer or retailer, what analysis can be done, how simple is this to do, and what business value it could provide. This is supported by an example using a sample of panel scanner data for carbonated beverages to illustrate possible outputs, insights, and corresponding business actions. Choice models are explored in detail, including techniques for calculating product share elasticity and promotional effectiveness. Extensions to the model and alternative modelling approaches are explored, and inclusion of social media data is discussed. 
 
-##Introduction
+\newpage
 
-Panel scanner data is a category of retail data created by participating households repeatedly scanning products bought across a variety of stores over a period of time. Wideley refered to as UPC panel data, from the Universal Product Code that is scanned in the process, this kind of data became widely available to the field of marketing science throughout the 1980s (Guadagni & Little, 2008), and has been used for a variety of business use cases (Bucklin & Gupta 1999). The introduction of UPC Data meant that households' purchasing decisions over time could be explored, rather than only aggregate store level sales data which had been predominant.
+#Introduction
+
+Panel scanner data is a category of retail data created by participating households repeatedly scanning products bought across a variety of stores over a period of time. Commonly referred to as UPC panel data, from the Universal Product Code that is scanned in the process, this kind of data became widely available to the field of marketing science throughout the 1980s (Guadagni & Little, 2008), and has been used for a variety of business use cases (Bucklin & Gupta, 1999). The introduction of UPC Data meant that households' individual purchasing decisions over time could be explored, rather than the aggregate store level sales data which had been predominant.
 
 ![Prevalence of "UPC scanner" in Google ngram corpus since 1970 (Google ngrams, 2008)](upcscannerngram.png)
 
-This data is often used to build models of consumer choice. These models are not usually made to be predictive, but rather interpretative, to understand consumer behaviour, and reactions to different marketing changes such as price changes, promotion changes and product availability. The outcome of the models often include a set of price and cross price elasticities, which can be used to visualise competitive structure. Consumer choice models can also be used to simulate consumer reactions to price, promotion, display and product changes, so business practitioners can test these changes before making the often costly decisions to bring the changes to market. 
+A key use of UPC data is to build models of consumer choice. These models are not usually made to be predictive, but rather interpretative, to allow businesses to understand consumer behaviour. Choice models can estimate consumer reactions to different elements of the marketing mix. The outcome of the models often include a set of price and cross price elasticities, which can be used to visualise competitive structure. Consumer choice models can also be used to simulate consumer reactions to price, promotion, display and product changes, so retail professionals can test these changes before making the often costly decisions to bring the changes to market. 
 
-This report uses an example of a carbonated soft drink data set to explain the steps that need to be taken in order to build a model of consumer choice. At each step there is a discussion of the decisions that an analyst, undertaking this kind of analysis for a retailer or manufacturer, would need to make to ensure that the analysis provides business value. 
+This report uses an example of a carbonated soft drink data set to explain the steps that need to be taken in order to build a model of consumer choice, then explores the alternative extensions that could be made to the model. At each step, there is a discussion of the decisions that an analyst, building this type of model for a retailer or manufacturer, would need to make to ensure that the analysis provides business value. 
 
 ##Data Description and Preprocessing
 
@@ -155,7 +162,7 @@ tmpprods <- head(tmp$Var1,19)
 df_ind_summary$product[!df_ind_summary$product %in% tmpprods] <- "Other"
 ```
 
-The data used as an example of these techniques is made up of around 29,000 UK households' purchases of canned and bottled carbonated soft drinks over a year, from December 2014 to December 2015 (hereafter referred to as the CSD data). The available variables are summarised in Table 1.
+The data used as an example of these techniques is made up of around 29,000 UK households' purchases of canned and bottled Carbonated Soft Drinks (CSDs) over a year, from December 2014 to December 2015 (hereafter referred to as the CSD data). The available variables are summarised in Table 1.
 
 ```{r}
 kable(data.frame(variable=c("Date","Household", "Shop","Product", "Promotion","Volume","Price"),
@@ -168,7 +175,7 @@ kable(data.frame(variable=c("Date","Household", "Shop","Product", "Promotion","V
                                "Amount spent on the product")), caption="CSD Data Variable Description")
 ```
 
-The analysis uses only data from the top retailer, as more reliable data is available on product availability for this store, and to reduce computational run-time. Varying sizes of beverages are included, for example, 330ml cans and 2 litre bottles. The analysis is made meaningful by focusing only on the category of canned drinks, to focus on true competitors. Own brand products are treated as one product, and low volume brands are grouped together to narrow the data to 20 products. The price range for these products can be seen in Figure 2. Energy drinks such as Red Bull have a higher price than average, and interestingly, it does not seem like own brand products have a lower price than average, which may be because "the use of price promotions for fast moving consumer goods (FMCG’s) by supermarkets has increased substantially over the last decade" (Malik, 2015), particularly for branded products.
+The analysis uses only data from the top retailer, as more reliable data is available on product availability for this store, and to reduce computational run-time. Varying sizes of beverages are included, for example, 330ml cans and 2 litre bottles. The analysis is made meaningful by focusing only on the category of canned drinks, to focus on true competitors. Own brand products are treated as one product, and low volume products are grouped together to narrow the data to 20 products. The price range for these products can be seen in Figure 2. Energy drinks such as Red Bull have a higher price than average, and interestingly, it does not seem like Own Brand products have a lower price than average, which may be because "the use of price promotions for fast moving consumer goods (FMCG’s) by supermarkets has increased substantially over the last decade" (Malik, 2015), particularly for branded products.
 
 ```{r}
 producttable <- as.data.frame(table(df_ind_summary$product))
@@ -176,7 +183,7 @@ producttable <- producttable[order(producttable$Freq, decreasing = TRUE),]
 df_ind_summary$product <- factor(df_ind_summary$product, levels = rev(producttable$Var1))
 
 ggplot(df_ind_summary, aes(x= product, y=priceper330ml)) + 
-  geom_boxplot(color="darkblue") + 
+  geom_boxplot(color="#a6bddb") + 
   theme_minimal() + 
   theme(legend.position = "none") + 
   xlab("Product") + ylab("Price (£) per 330ml")  + coord_flip()
@@ -186,37 +193,36 @@ Figure 2: CSD Data Product Price Ranges
 
 Choice models require the set of available alternatives and prices at the time the shopper made the decision, therefore the CSD data had to be processed to identify which products were available in each store over the time period, based on what other households bought. Ideally this data would be provided in the dataset, as the imputation is not necessarily fully comprehensive, as alternatives may not have been purchased that day. 
 
-The dataset used is missing “feature” and “display” variables that are commonly included, and used in this type of analysis (Zhang 2006), these are important variables that influence consumer choice. Omitted variable bias may occur if these are not included, as brand placement in a prominent place on the store shelf may influence both consumer choice and price sensitivity. The analyst should ensure that these variables are available or that the business is aware of the potential bias in the results.
+The dataset used is missing “feature” and “display” variables that are commonly included and used in this type of analysis (e.g. Zhang, 2006), these are important variables that influence consumer choice. Omitted variable bias may occur if these are not included, as product placement in a prominent place on the store shelf may influence both consumer choice and price sensitivity. The analyst should ensure that these variables are available or that the business is aware of the potential bias in the results.
 
-The model will be of consumer choice within a category, assuming that the consumer has already decided to make a purchase within that category. For this reason the definition of "category" and which products are included within each category is incredibly important, for example: "Should different flavors, or colors, or sizes be treated as different products or lumped together?" (Guadagni & Little 1983).
-
-The preparation of data before running a choice model is therefore highly important. Andrews & Currim (2005) recommend that analysis is done at the lowest level (the SKU) if possible, modelling at the SKU level was popularised by Fader & Hardie (1996). This may well improve predictive performance, but if the business wants analysis at the brand level, then it may be more dangerous to do this aggregation post-modelling, as it is not always theoretically sound to aggregate effects, especially if the model is non-linear, as the multinomial logit model is. The CSD data was analysed at the lowest level of the data provided, except for the "Other", and "Private Label" categories.
+The model estimates the product share of consumer choice within a category. For this reason the definition of "category" and which products are included within each category is incredibly important, for example: "Should different flavors, or colors, or sizes be treated as different products or lumped together?" (Guadagni & Little, 1983). The preparation of data before running a choice model is therefore highly important. Andrews & Currim (2005) recommend that analysis is done at the lowest level (the SKU) if possible, modelling at the SKU level was popularised by Fader & Hardie (1996). This may well improve predictive performance, but if the business wants analysis at the brand level, then it may be more dangerous to do this aggregation post-modelling, as it is not always theoretically sound to aggregate effects, especially if the model is non-linear, as binary choice models are. The CSD data was analysed at the lowest level of the data provided, except for the "Other", and "Private Label" categories.
 
 Andrews & Currim (2005) also find that, when aggregating, averaging prices causes the price coefficient to be inflated, whereas taking the maximum of a binary promotion variable causes the promotion coefficient to be underestimated. These two findings imply that it makes sense only to aggregate products for which the coefficients are not of primary importance, in this case private label brands and “other” less important brands.
 
-Depending on what technology and infrastructure is being used to run the model, multinomial logit modelling can be quite computationally expensive. Andrews & Currim (2005) offer advice on this as well, with a result that "selecting purchases of n households over w weeks is slightly preferred over selecting purchases of 2n households over w / 2 weeks", so if the data is to be subset then a subset over households instead of time is preferable.
+Depending on what technology and infrastructure is being used to run the model, choice model training can also be quite computationally expensive, and limiting the training data may be required in some cases. Andrews & Currim (2005) offer advice on this as well: "selecting purchases of n households over w weeks is slightly preferred over selecting purchases of 2n households over w / 2 weeks", so if the data is to be subset then the analyst should subset over households instead of time where possible.
 
 #Modelling Methodology
 
-The processed dataset then constitutes a set of revealed preferences - the purchases that consumers actually made, as opposed to stated preferences - the products that the consumers explicitly say they like the best. This structure of data allows a mixed multinomial logit model to be run, which became the default after the seminal work of Guadagni & Little (1983). This is an econometric tool that estimates the utility of each product (j) for each consumer (i) $V_{i,j}$ as a linear combination of explanatory variables, either belonging to the household (e.g.  income), or the properties of the product (e.g. price):
+The processed dataset then constitutes a set of revealed preferences - the purchases that consumers actually made, as opposed to stated preferences - the products that the consumers explicitly say they like the best. This structure of data allows a multinomial logit model to be run, which became the default after the seminal work of Guadagni & Little (1983). This is an econometric tool that estimates the utility of each product (j) for each consumer (i) $V_{i,j}$ as a linear combination of explanatory variables, either belonging to the household (e.g.  income), or the properties of the product (e.g. price):
 
-$V_{i,j} = \beta_1 + \beta_2 x_{i} +  \beta_3 x_{i,j} + \dots$
+$$V_{i,j} = \beta_1 + \beta_2 x_{i} +  \beta_3 x_{i,j} + \dots$$
 
 by modeling the  probability of making a particular choice as per the logit equation, where the probability of consumer i choosing product j is a function of the relative utility:
 
-$Prob_{i,j} = \frac{e^{V_{i,j}}}{\Sigma_{(k \in K)} e^{V_{i,k}}}$
+$$Prob_{i,j} = \frac{e^{V_{i,j}}}{\Sigma_{(k \in K)} e^{V_{i,k}}}$$
 
-The key product level explanatory variables are price and promotion, which are supplemented by household level variables calculated from the data. The dataset did not already contain household-specific variables such as income or number of children, to be used as additional explanatory variables in the model, despite the fact they are often included as part of a UPC dataset. However, as there was a large enough time window, it was possible to calculate household-level variables from an initialisation period of the initialisation period (the first 60 days).
+The key product level explanatory variables are price and promotion, which are supplemented by household level variables calculated from the data.
 
-In this case a loyalty variable was calculated: the proportion spent on each brand in the initialisation period. An average spend variable was also calculated for each household: the average vaule spent in the category per week over the first month. Finally, the total purchase incidence was calculated: the number of times the household made purchases in the first month. The data was then limited to households that made some purchases in the initialisation period, to avoid erroneous missing data for these initialisation variables. These variables account for some of the heterogeneity across households.
+The dataset did not already contain household-specific variables such as income or number of children, to be used in the model, despite the fact they are often included in UPC datasets. However, as there was a large enough time window, it was possible to calculate household-level variables from an initialisation period of the initialisation period (the first 60 days). A loyalty variable was calculated: the proportion spent on each product in the initialisation period. An average spend variable was also calculated for each household: the average value spent in the category per week over the first month. Finally, the total purchase incidence was calculated: the number of times the household made purchases in the first month. The data was then limited to households that made some purchases in the initialisation period, to avoid erroneous missing data for these initialisation variables. These calculated variables account for some of the heterogeneity across households.
 
-The final model was then estimated using a multinomial logistic regression model using the mlogit package (Croissant, Y. 2012), and was of the form:
+The final model was then estimated using a multinomial logistic regression model using the mlogit package (Croissant, 2012), and was of the form:
 
-$V_{i,j} = \alpha_j + \beta_1 price_{i,j}  + \beta_2 loyalty_{i,j} + \beta_3 promotion_{i,j}  + \beta_{4_j} purchase frequency_{i} + \beta_{5_j} averagespend_{i} + \epsilon$
+$$V_{i,j} = \alpha_j + \beta_1 price_{i,j}  + \beta_2 loyalty_{i,j} + \beta_3 promotion_{i,j}  + \beta_{4_j} purchase frequency_{i} + \beta_{5_j} averagespend_{i} + \epsilon$$
 
-The intercept is alternative-specific, and represents the "base" utility of the product, relative to the reference product. Price, loyalty and promotion are alternative-specific but have universal coefficients, meaning that there are different prices across products and time, but that consumers have a universal reaction to a change in price, regardless of the product. Purchase frequency and average spend are individal-specific and have alternative-specific coefficients, meaning that there is one, unchanging value per household, but that consumers may have a different relationship with that variable for each product. For example, consumers with a higher average spend may be more likely to purchase premium brands, so have positive $beta_{4_j}$ coefficients for premium brands and negative $beta_{4_j}$ coefficients for everyday brands.
+The intercept is alternative-specific, and represents the "base" utility of the product, relative to the reference product. Price, loyalty and promotion are alternative-specific but have universal coefficients, meaning that there are different prices across products and time, but that consumers have a universal reaction to a change in price, regardless of the product. Purchase frequency and average spend are individual-specific and have alternative-specific coefficients, meaning that there is one, unchanging value per household, but that consumers may have a different relationship with that variable for each product. For example, consumers with a higher average spend may be more likely to purchase premium products, so have positive $beta_{4_j}$ coefficients for premium products and negative $beta_{4_j}$ coefficients for everyday products. The choice of variables in the model, whether they are individual or alternative specific, and whether they have alternative-specific coefficients, is highly important for an analyst to decide, and to understand the implications for calculation of variables and interpretation of coefficients. 
 
-The choice of variables in the model, and which way they should be modelled, is highly important for an analyst to decide, and to understand the implications for interpretation of coefficients.
+It is also possible to build a predictive choice model with a multinomial choice neutral network (Ripley & Venables, 2016), however these lack interpretability in terms of which factors are contributing to choice, and those factors are the key insights for retail professionals. It is not much use to be able to predict an individual's choice, but rather it is beneficial to understand the mechanisms behind that choice.
+
 
 ```{r}
 initialisationperiod <- unique(df_ind_summary$date)[1:60]
@@ -451,11 +457,13 @@ sharetable <- merge(choiceshare, shareofvolume)
 sharetablesorted <- sharetable[order(sharetable$'Share of Choice (%)', decreasing = TRUE),]
 ```
 
-Panel scanner data allowed manufacturers and retailers to see not just brand share of sales volume or revenue, but also their share of choice (Kamakura & Russel 1989), the amount of times a consumer chooses to buy the brand over all others, regardless of the quantity that they buy. This is of high importance for manufacturers, who often want to drive revenue by increasing brand choice within the category, regardless of the size of the category. Shares of choice and volume of the 25 products can be seen in Appendix A, the largest product, Diet Coke, has a higher share of revenue (£) than of choice, implying that consumers have a high purchase quantity for this product.
+Panel scanner data allowed manufacturers and retailers to see not just product share of sales volume or revenue, but also their share of choice (Kamakura & Russel, 1989). Share of choice represents the amount of times consumers choose to buy a product over all others, regardless of the quantity that they buy or how much they spend. This is particularly important for manufacturers, who often want to understand how a product is performing within a category, regardless of the size of the category. Shares of choice and volume of the 25 products can be seen in Appendix A. The largest product, Diet Coke, has a higher share of revenue (£) than of choice, implying that consumers have a high purchase quantity for this product.
 
-The output of the full model results can be found in Appendix B coefficient on loyalty is positive, this aligns with the expectation that consumers are more likely to purchase a product that they previously showed loyalty to. This coefficient is important for manufacturers to understand about their category, if this coefficient is high, or is increasing over time, then this indicates that brand loyalty is particularly importance (or growing in importance), so more focus should be placed on improving brand image, or on engaging consumers early in their lifecycle, e.g. by targeting mothers or children. Although sugary drink manufacturers may need to be wary of this approach. If the coefficient is negative, or reducing, then this could indicate that consumers are exhibiting variety-seeking behaviour (Seetharaman & Chintagunta, 1998).
+The output of the trained model can be found in Appendix B. The coefficient on price is negative and statistically significant, showing that consumers are exhibiting usual behaviour of switching away from products with high prices and towards those with lower prices. The coefficient on loyalty is positive and statistically significant, which aligns with the expectation that consumers are more likely to purchase a product that they often purchased in the initialisation period. This coefficient is important for manufacturers to understand about their category, if this coefficient is high, or is increasing over time, then this indicates that product loyalty has a strong impact (or is growing in impact), so more focus should be placed on improving brand image, or on engaging consumers early in their lifecycle. If the coefficient is negative, or reducing, then this could indicate that consumers are exhibiting variety-seeking behaviour (Seetharaman & Chintagunta, 1998), and marketing activity for manufacturers with varied products may want to capitalise on that. The coefficient on promotion is also positive and statistically significant, as per expectations, implying that consumers respond to promotional offers by switching to a promoted product.
 
-Brand share elasticity and cross elasticity can then be calculated from the price coefficient, by calculating the marginal effects and dividing by the percentage price change (Calculation details can be found in Appendix C). The consumer decision point that this is modeling is after the consumer has chosen what to buy (e.g. a canned drink), and how much to buy, which brand they then choose. Focussing on pepsi, we see that X has a high cross-price elasticity, implying that this is a strong competitor. This information is useful for pricing strategies, in particular the distinction between Every Day Low Prices (EDLP) strategies compared to promotional strategies (Shankar & Krishnamurthi, 1996). At a more operational level, price elasticity information is also useful for manufacturing company account managers and retailer buyers, who work together regularly to define promotional prices.
+The coefficient for the intercept of Diet Coke is positive, showing that consumers place higher utility on this product as compared to the reference product (7upDiet). Diet Coke also has a positive coefficient for average spend, meaning that consumers that spent more on average in the initialisation period tend to choose Diet Coke more than those who spent less, so it could be identified as a "premium" product when compared to Old Jamaica which has a negative coefficient. The purchase quantity coefficient for Diet Coke is positive, implying that regular shoppers buy it, again as opposed to Old Jamaica which has a negative coefficient, so seems to be more popular for infrequent shoppers. Each of these are statistically significant effects as estimated by the model. Similar analysis can be done for all products by analysing the model output results.
+
+Product share own price elasticity and cross price elasticity can then be calculated from the price coefficient by calculating the marginal effects and dividing by the percentage price change (Calculation details can be found in Appendix C). 
 
 ```{r elast}
 load("csdsdata14.RData")
@@ -476,9 +484,9 @@ for (product1 in unique(csds.data$alt)){
   elastdf[product1,] <- elast}
 ```
 
-The full set of elasticities and cross price elasticities are reported in Appendix D, importantly all cross price elasticities are positive, and own price elasticities are negative, indicating that when the price of a product goes up, consumers are less likely to buy that product, and more likely to buy other products, so the landscape of carbonated soft drinks is one made up of competitors. 
+The full set of elasticities and cross price elasticities are reported in Appendix D, importantly all cross price elasticities are positive, and own price elasticities are negative, indicating that when the price of a product goes up, consumers are less likely to buy that product, and more likely to buy other products, so the landscape of CSDs is one made up of competitors. Diet Pepsi and Diet Coke have higher than average cross-price elasticities with each other, confirming that they are strong competitor products. This information is useful for manufacturers to decide on pricing strategies, in particular to assess the effectiveness of Every Day Low Prices (EDLP) strategies compared to promotional strategies (Shankar & Krishnamurthi, 1996). At a more operational level, product share price elasticity information is also useful for manufacturing company account managers and retailer buyers, who work together regularly to define short term promotional prices.
 
-Once estimates of price elasticities and cross price elasticities have been derived, the competitive landscape can then be described using clout and vulnerability analysis, where clout is the sum of the outbound cross price elasticities, representing how much the brand’s price affects purchases of other brands, and vulnerability is the sum of the inbound cross price elasticities, representing how much the brand’s sales is dependent on other brands’ prices (Kamakura & Russel 1989). The clout and vulnerability for the top 10 brands in the CSD dataset is displayed below, where the size of the node represents the share of choice:
+Once estimates of price elasticities and cross-price elasticities have been derived, the competitive landscape can then be described using clout and vulnerability analysis, where clout is the sum of the outbound cross price elasticities - representing how much the product’s price affects purchases of other products, and vulnerability is the sum of the inbound cross price elasticities - representing how much the product’s sales is dependent on other products’ prices (Kamakura & Russel, 1989). The clout and vulnerability for the produts in the CSD dataset are displayed below, where the size of the node represents the share of choice:
 
 ```{r fig.width=8}
 elastdf_cv <- elastdf
@@ -506,107 +514,115 @@ ggplot(cvdf, aes(x=vulnerability, y=clout, size=share)) +
 
 Unlabeled: 7UpDiet, 7UpRegular , CocaColaLifeRegular , DrPepperRegular, FantaRegular, OldJamaicaRegular , RelentlessRegular, RubiconRegular, TangoRegular, FantaDiet.
 
-The strong brands such as Diet Coke and Pepsi have relatively high clout and lower vulnerability, whereas the more niche brands are clustered together with higher vulnerability and low clout. This is to be expected as consumers are less likely to switch from strong brands to niche brands as a result of a price change from the niche brand, but they are likely to change their choice due to price changes from a strong brand. It is interesting that in this datset Regular Pepsi has low clout and high vulnerability even though it has a high share of choice. This may mean that it is a common "second choice alternative" to the other strong brands when they have a higher price. 
+Products from strong brands such as Coke and Pepsi have relatively high clout and lower vulnerability, whereas the more niche products are clustered together with high vulnerability and low clout. This is to be expected as consumers are unlikely to switch from strong brands to niche products as a result of a price change from the niche product, but they are likely to change their choice due to price changes from a strong brand. It is interesting that in this dataset Regular Pepsi has low clout and high vulnerability even though it has a high share of choice. This may mean that it is a common "second choice alternative" to the other strong brands when they change to have a higher price. 
 
-This market structure analysis can be useful for brands to understand where they stand in the competitive landscape.  As this market structure is likely to change over time e.g. when new products enter the market (Van Heerde, Mela & Manchanda, 2004). It is also important for an analyst to regularly repeat this analysis, and show the changes over time. This analysis can show which brands are starting to compete more with each other, for example that SUVs used to compete more strongly with vans, then grew to compete more competitively with cars (Luan, Sudhir & Norris 2007).   
+This clout and vulnerability analysis can be useful for brands to understand where they stand in the competitive landscape. This landscape is likely to change over time, as consumer preferences change, or when new products enter the market (Van Heerde, Mela & Manchanda, 2004). Therefore it is important for an analyst to regularly repeat this procedure, and show the changes over time. This can highlight which products are starting to compete more heavily with each other, for example that SUVs used to compete more strongly with vans, then grew to compete more competitively with cars (Luan, Sudhir & Norris, 2007).   
 
-Panel scanner data also allowed businesses to understand how promotional activity affected consumers at an individual level. Clout and vulnerability analysis can also be done on a promotional / advertising basis, to understand how much the sales of brands are impacted by the promotions of other brands, and there can be a more detailed analysis of the points at which consumers switch between brands, or out of the category.
+Panel scanner data also allowed businesses to understand how promotional activity affected consumers at an individual level (Van Heerde, Leeflang & Wittick, 2004). Using the promotion coefficient, clout and vulnerability analysis can also be done on a promotional / advertising basis, to understand how sales are impacted by the promotions of other products. 
 
-It is possible to  build a predictive choice model with a multinomial choice neutral network (Ripley & Venables, 2016), however these lack interpretability in terms of which factors are contributing to choice, which are really the key insights for business practicitioners. It is not much use to be able to predict an individual's choice, but rather it is beneficial to understand the mechanisms behind that choice. The neural network approach may be beneficial, however, in simulations of consumer choice given a different competitive price structure, e.g. to see what the expected aggregate response would be given a change in price of one of the products.
-
-##Extension to full choice model
-
-![Brand Choice Decision Tree, as per structure of Sismiero (2017).](mldt.png)
-
-The multinomial logit model of brand choice (as per Figure 1) assumes that the consumer is making a purchase within the category. It focuses on brand choice, and ignores other key business questions such as: what are the drivers for how often consumers come to the shop, and for how much they buy when they are there. As mentioned in Guadagni & Little (1983), this has little value to the retailer, who is interested in total spend at their store, and also has limitations for the manufacturers who are interested not only in brand share but in purchase incidence and quantity in the category.
-
-![Branch Choice and Purchase Incidence Decision Tree, as per structure of Sismiero (2017).](mldt_pi.png)
-
-One of the commonly used modelling techniques to cater for purchase incidence is the nested logit model (Guadagni & Little, 1998). This makes a broader assumption that the consumer is making a shopping trip, and then models whether the consumer will make a purchase within the category, and subsequently what their brand choice would be. The nested approach first estimates the traditional multinomial logit, and then uses the concept of "category attractiveness", to add the additional layer of product category choice on top of this. This handles the case where multiple products are purchased in one shopping trip, as it caters for multiple purchase opportunities within one shopping trip, in which the consumer may or may not purchase the same item. 
-
-![Brand Choice, Purchase Incidence and Purchase Quantity Tree, as per structure of Sismiero (2017).](mldt_pipq.png)
+#Vertical Extension of the Choice Model
 
 
-This can then further be extended to purchase quantity, as has been done by (Gupta, 1998; Chiang 1991; Chintagunta 1993; Bucklin, Gupta & Siddarth 1998). For this, a zero-truncated Poisson model is often used (e.g. in Bucklin, Gupta & Siddarth 1998), to model count data where it is known that the count is greater than 0, which is the case in this situation as this model occurs after we know the consumer has made a purchase of the brand. The quantity elasticity that is produced by this model is total purchase elasticity, and this can be added to the brand choice elasticity from the multinomial logit model to get the overall elasticity.
+```{r, echo = FALSE, fig.pos = 'h', fig.align='center'}
+knitr::include_graphics("mldt.png")
+```
 
-The interaction between purchase quantity promotion elasticity and brand switching promotion elasticity are important for the discussion between retailers and manufacturers. Manufacturers care about increasing the overall sales volume of their brand, so purchase quantity and brand switching elasticities are important to them, however the retailer doesn’t benefit from consumers’ brand switching, as they lose the revenue brands consumers are switching from (Srinivasan et al 2004). It is important for both parties to have good estimates of both the elasticities in order to make their decisions properly, but the corresponding actions are likely to differ. 
+*Figure 2 - Brand Choice Decision Tree, as per structure of Sismeiro (2017).*
 
-![Brand Choice, Purchase Incidence, Purchase Quantity and Retailer Choice Tree, as per structure of Sismiero (2017).](mldt_pipqrc.png)
+The multinomial logit model of brand choice, as per Figure 2, assumes that the consumer is making a purchase within the category. It focuses on brand choice, and ignores other key business questions such as: what are the drivers for how often consumers come to the shop (purchase incidence), and how much do they buy when they are there (purchase quantity). As mentioned in Guadagni & Little (1983), without these questions being answered the analysis provides limited value for manufacturers, who are interested not only in brand share but in purchase incidence and quantity in the category, and even more limited value to the retailer, who is interested in total spend at their store. The choice model can be extended vertically to provide answers to these questions.
 
-An additional layer could also be added to model the choice of retailer e.g. by Bucklin & Lattin (1992) as per Figure 5. 
+```{r, echo = FALSE, fig.pos = 'h', fig.align='center'}
+knitr::include_graphics("mldt_pi.png")
+```
 
-#Modelling considerations
+*Figure 3 - Brand Choice and Purchase Incidence Decision Tree, as per structure of Sismeiro (2017).*
 
-Much research has been done using UPC scanner data to produce models for consumer purchasing decisions, and many additional subtleties and complexities that can be encorporated into the models have been identified. The models can be extended in a variety of ways to cater to more nuanced consumer behaviour. For example, there is evidence that consumers do not always respond directly to price, but compare prices to a “reference price”, how much they think the item should cost (Winer 1986). There are of course difficulties with modelling this internal psychological price, but proxies for it can be made by using average price for comparable products on that day, the price last paid for the product by that consumer, or the average price for the product. There may also be an additional mechanism where consumers may have different responses to a price above the reference point than to a price below (Krishnamurthi, Mazumdar & Raj 1992), following the “loss aversion” research of Kahneman and Tversky (1991).
+One of the commonly used modelling techniques to cater for purchase incidence, as per Figure 3, is the nested logit model (Guadagni & Little, 1998). This model makes a broader assumption that the consumer is making a shopping trip, and then models whether the consumer will make a purchase within the category, and subsequently what their product choice would be. The nested approach first estimates the traditional multinomial logit, and then uses the concept of "category attractiveness", to add the additional layer of product category choice on top of this. This approach can be built to handle the case where multiple different products are purchased in one shopping trip, as it can cater for multiple purchase opportunities within one shopping trip. 
 
-Consumers may also have internal price “thresholds” and change their choice only if a competitor brand is below a threshold, or their usual brand is above a threshold. These thresholds could also be relative to a dynamic reference price. Reference thresholds could be estimated for consumers or consumer segments, and included in the model (Han, Gupta & Lehmann 2001).
+```{r, echo = FALSE, fig.pos = 'h', fig.align='center'}
+knitr::include_graphics("mldt_pipq.png")
+```
 
-There is evidence that suggests that the price elasticity may also change across the life-cycle of the product (Simon 1979, Parker 1992), Bijmolt, Heerde and Pieters (2005) found that price elasticities in general have been increasing over time, whereas share elasticities have remained quite constant. Elasticities may also be store dependent (Hoch et al 1995). How these mechanisms relate have key business implications, such as how to structure a pricing strategy over a product lifecycle (Bijmolt, Heerde and Pieters, 2005), and how to manage promotional pricing across retailers.
+*Figure 4 - Brand Choice, Purchase Incidence and Purchase Quantity Tree, as per structure of Sismeiro (2017).*
 
-Additional loyalty variables could also be calculated in addition to the product-loyalty calculated above, including higher level brand loyalty (e.g Pepsi / Coca Cola), package-size loyalty (Guadagni & Little 1983) and flavour loyalty, to split out the specific consumer reactions to product attributes.
+This can then further be extended to purchase quantity, as per Figure 4, as has been done by (Gupta, 1998; Chiang 1991; Chintagunta 1993; Bucklin, Gupta & Siddarth, 1998). For this, a zero-truncated Poisson model is often used (e.g. in Bucklin, Gupta & Siddarth, 1998). This approach models count data when it is known that the count is greater than 0, which is applicable in this situation as this estimation occurs after we know the consumer has made a purchase. The quantity elasticity that is produced by this model can be added to the brand choice elasticity from the multinomial logit model to get the overall elasticity.
 
-Some approaches also include an inventory variable (e.g. Chintagunta 1993) by estimating a consumer’s consumption rate during the initialisation period, then estimating their “inventory” of the product at the time they shop, by adding to the inventory variable every time they make a purchase, and making reductions from it at the calculated rate of consumption.
+The interaction between purchase quantity price and promotion elasticities and their product switching counterparts is important for the discussion between retailers and manufacturers. Manufacturers care about increasing the overall sales volume of their brand, so purchase quantity and brand switching elasticities should be aggregated to gauge the full effect, but the retailer doesn’t benefit from consumer product switching, as they lose the revenue from the products consumers are switching from (Srinivasan et al., 2004). It is important for both parties to have good estimates of both the elasticities in order to make their decisions properly, even though the corresponding actions are likely to differ. 
 
-Choice models can be extended to include multiple "states" of consumer behaviour, e.g. planned purchases and spontaneous purchases. (Bucklin and Little, 1991). Walsh (1995) suggests an alternative model for cases in which there are often multiple different products purchased on each shopping occasion, which can be the case for carbonated soft drinks. This alternative model focusses on the "assortment" of goods that a consumer has in their inventory, and takes into account that the consumer purchase goods for unknown future occasions and may therefore value variety. Dubé (2004) offers another model to handle this case.
+```{r, echo = FALSE, fig.pos = 'h', fig.align='center'}
+knitr::include_graphics("mldt_pipqrc.png")
+```
 
-Bucklin & Gupta (1992) added another refinement to the model by including household response segements, grouping households by how they react to price and promotion variables, and then estimating their responses as a group. This caters for some of the heterogeneity amongst consumers, and by maintaining groups instead of going to the individual level, the reported segment variables are "managerially interpretable" Guadagni & Little (1998). Bucklin, Gupta & Siddarth (1998) continue this segmentation approach across the three tiers of purchase incidence, brand choice, and purchase quantity.
+*Figure 5 - Brand Choice, Purchase Incidence, Purchase Quantity and Retailer Choice Tree, as per structure of Sismeiro (2017).*
 
-The model could be further extended by splitting the base price and the promotional price, in this case that would require using a categorisation of promotion descriptions either with a look-up table, or using NLP techniques, or by comparing average non-promotional prices to promotional prices.
+An additional layer could also be added to model, the choice of retailer e.g. by Bucklin & Lattin (1992) as per Figure 5. 
 
-Consumer segments can also be created based on choice behaviour (REFERENCE) , often in the literature consumers are split up into “loyal” and “switching” consumers (Kamakura & Russel 1989). Clout and vulnerability analysis can also be repeated on consumer segments, to understand how the competitive structure differs across these, which can be useful for developing segment-targeted marketing and product strategies.
+#Horizontal Extension of the Choice Model
 
-Each of these additional elements lead to a more refined model, catering for additional consumer considerations and behaviours, unfortunately in most cases they also lead to additional computational complexity, and if care is not taken, to results that are less easy to interpret by a retail professional. 
+Much research has gone into using UPC scanner data to produce models for consumer purchasing decisions, and many additional subtleties and complexities that can be incorporated into the models have been identified to cater to more nuanced consumer behaviour. This section outlines some of the ways that choice models can be extended, that an analyst should consider.
 
-If one of the purposes of the analysis is to understand pricing strategies then the inclusion of the more nuanced consumer price response behaviours would provide a much more useful model than the price elasticity of the “basic” model. However, if the purpose is to undercover product attribute importance or promotional effects, then it may not be worth the additional modelling effort to establish the reference and threshold points, simply to reduce the bias of the model.
+There is evidence that consumers do not always respond directly to price and instead compare prices to a “reference price" - how much they think the item should cost (Winer, 1986). There are of course difficulties with modelling this internal psychological price, but proxies for it can be made by using average price for comparable products on that day, the price last paid for the product by that consumer, or the average price for the product. There may also be an additional mechanism where consumers respond differently to a price above the reference point than to a price below (Krishnamurthi, Mazumdar & Raj, 1992), following the “loss aversion” research of Kahneman and Tversky (1991).
 
-##Limitations
+Consumers may also have internal price “thresholds” and change their choice only if a competitor brand is below a threshold, or their usual brand is above a threshold. These thresholds could also be relative to a dynamic reference price. These thresholds can be estimated for consumers or consumer segments, and then included into the model (Han, Gupta & Lehmann, 2001). 
 
-Evidence has shown that marketing executives often make price promotion decisions intuitively rather than relying on the outputs of the empirical methods discussed above (Bogomolova, Szabo & Kennedy, 2017). Many of the theoretical and academic approaches are highly complex, have complex outcomes, and can use esoteric language. These two facts are very likely linked. The outcomes of retail modelling approaches must be clear and actionable, and ideally the mechanisms to achieve those outcomes must be understandable (Neslin et al., 1994).
+There is evidence that suggests that the price elasticity may also change across the life-cycle of the product (Simon 1979, Parker, 1992). Bijmolt, Van Heerde and Pieters (2005) also found that overall price elasticities in general have been increasing over time, whereas share elasticities have remained quite constant. Elasticities could also be dependent on the particular store or retailer (Hoch et al 1995). How these mechanisms relate to each other has key business implications, such as how to structure a pricing strategy over a product lifecycle (Bijmolt, Van Heerde and Pieters, 2005), and how to manage promotional pricing across retailers. 
 
-However, there is empirical evidence that analysing consumer data, including panel data, has a positive impact on company financial performance (Germann et al., 2014). So it is the job of the analyst to ensure that the outputs are meaningful, using the clout and visualisation framework may help here, or displaying visual simulations of changes to the marketing mix.
+Additional loyalty variables could also be calculated in addition to the product-loyalty calculated in the CSD example. This could include higher-level range or brand loyalty (e.g Pepsi / Coca Cola), package-size loyalty (Guadagni & Little, 1983) and flavour loyalty, to identify consumer reactions to specific product attributes.
 
-##Choice Model Applications
+Some modelling approaches also include an inventory variable (e.g. Chintagunta 1993) by estimating a consumer’s consumption rate during the initialisation period, then estimating their “inventory” of the product by adding to the inventory variable every time they make a purchase, and making reductions from it at the calculated rate of consumption.
 
-Choice models can also be used outside of the retail space, for example to model how people choose: a profession (Boskin, 1974), a house and mode of commute (Pinjari et al, 2011), where to attend college (Long, 2004), choice of vehicle (Berkovec 1985). The important considerations to take when deciding whether to use a choice model include:
+Walsh (1995) also suggests an alternative model for cases in which there are often various different products purchased on each shopping occasion. This alternative model focuses on the "assortment" of goods that a consumer has in their inventory, and takes into account that the consumer purchase goods for unknown future occasions and may therefore value variety. Dubé (2004) offers yet another model to handle this case.
 
-* Whether the analyst has access to the information of available alternatives (e.g. what other cars are on the market)
-*	Whether a high percentage of the variables are available on which the individuals are expected to make their decisions (e.g. the price, number of doors)
-* Whether the relevant decision making behaviours can be modelled or proxied sufficiently (e.g. whether there is information on the existence of, or values for reference prices and thresholds in the situation)
-* Whether there are enough decisions to make the analysis statistically significant
+Consumer segments can also be created based on choice behaviour. Often in the literature consumers are split up into “loyal” and “switching” consumers (Kamakura & Russel, 1989). Clout and vulnerability analysis can also be repeated on consumer segments, to understand how the competitive structure differs, and can be useful for developing segment-targeted marketing and product strategies. Bucklin & Gupta (1992) added another refinement to the model by including household response segments, grouping households by how they react to price and promotion variables, and then estimating their responses as a group. This caters for some of the heterogeneity amongst consumers, and by maintaining groups instead of going to the individual level, the reported segment variables are "managerially interpretable" Guadagni & Little (1998). Bucklin, Gupta & Siddarth (1998) continue this segmentation approach across the three tiers of purchase incidence, brand choice, and purchase quantity, as per Figure 4.
 
-##Additional Data Sources
+The model could be further extended by splitting the base price and the promotional price, or between different types of promotions. In this case that would require using a categorisation of promotion descriptions either with a look-up table, using NLP techniques on promotion descriptions, or by comparing average non-promotional prices to promotional prices. Choice models could also be extended to include multiple "states" of consumer behaviour, e.g. planned purchases and spontaneous purchases. (Bucklin and Little, 1991). 
 
-The agencies that produce these datasets now also run econometric models and provide reports, analysis and consultancy to businesses (Neilsen, 2017). Therefore, for a data scientist beginning to explore this data for a business, it is worth first understanding what types of reporting and analysis that business is already receiving from the data provider. If a data scientist is charged with getting insights from this data it may be because the business:
+Each of these additional elements would lead to a more refined model, catering for additional consumer considerations and behaviours, unfortunately in most cases they also lead to additional computational complexity, and if care is not taken, to results that are less easy to interpret by a retail professional. If one of the purposes of the analysis is to understand pricing strategies then the inclusion of the more nuanced consumer price response behaviours would provide a much more useful model than the price elasticity of the “basic” model. However, if the purpose is to undercover product attribute importance or promotional effects, then it may not be worth the additional modelling effort to establish the reference and threshold points, only to increase the predictive accuracy of the model.
+
+#Additional Data Sources
+
+The agencies that produce these datasets also run econometric models and provide reports, analysis and consultancy to businesses (e.g. Neilsen, 2017). Therefore, for a data scientist beginning to explore this data for a business, it is worth first understanding what types of reporting and analysis that business is already receiving from the data provider or other agencies. If a data scientist is charged with getting insights from this data, it may be because the business:
 
 * Is not willing to pay for the pre-packaged results from the data provider, in which case the above techniques apply.
 * Wants a custom model including variables or behaviours that are specific to their industry, in which case the above techniques and the model extension discussion applies, and there may well be additional modelling steps.
 * Wants to merge the data with another dataset, to get additional insights.
 
-This section focusses on the last reason, in particular the new datasets that are available for business to access, and how they link to customer choice data.
+This section focuses on the last reason, in particular the new datasets that are available for business to access, and how they link to customer choice data.
 
-Consumer choice models have previously been extended to include economic conditions (reference), which may impact a consumer’s price elasticity, or choice behaviour. For the purchase quantity model it may also be useful to include weather data, but this is less likely to be useful for the brand choice model, as the weather isn’t clearly linked to consumers’ price or promotion elasticity, so inclusion may improve the prediction rate, but omission is unlikely to cause bias. 
+Consumer choice models could also be merged with GDP growth or inflation data to include economic conditions, which may impact consumer price elasticity and choice behaviour. For the purchase quantity model it may also be useful to include local weather data, but this is less likely to be useful for the brand choice model. Weather isn’t clearly linked to consumers’ price or promotion elasticity, so although inclusion may improve the prediction rate, omission is unlikely to cause bias. In more recent years in-store panel data has also been linked to online sales data, to model consumers who use both channels, or analyse how it differs across those channels. There are many elements that may differ including price elasticity (Degeratu, Rangaswamy and Wu, 2000) and brand loyalty (Danaher, Wilson and Davis, 2003).
 
-In more recent years in-store panel data has been linked to online sales data, to compare consumer behaviour as a whole, or analyse how it differs across those two channels. There are many elements that may differ including price elasticity (Degeratu, Rangaswamy and Wu, 2000) and brand loyalty (Danaher, Wilson and Davis 2003).
+There has been an explosion over the last decade in data that consumers provide freely relating to their shopping habits, their brand preferences, and their decision making behaviour. A major force driving this is the increase in usage of social media sites such as twitter where consumers post publically about their daily experiences. Social media “exposure” to a product, could be measured and included into the choice model as a brand specific attribute that changes over time (Liu & Lopez, 2016). This "exposure" could measure social media advertising, but also organic conversation about the brand. This could also be further broken down into positive or negative exposure based on sentiment analysis of the social media content, or exposure to nutritional social media discussions such as sugar and caffeine (as in Liu & Lopez, 2016), or to ingredients, flavours or other product attributes. 
 
-There has been an explosion over the last decade in data that consumers provide freely relating to their shopping habits, their product preferences, and their decision making behaviour. A major force driving this is the increase in usage of social media sites such as twitter where consumers post publically about their daily experiences.
+Social media data could also be used to complement the outcomes of the statistical analysis. If the model shows a high absolute brand choice price elasticity to a competitor brand, then qualitative analysis of social media data and the conversations that consumers are having when they mention the two brands, could identify what features consumers see as important. Data science techniques such as word embedding (Golberg & Levy, 2014) could be used here to identify language that corresponds to brand-switching, in order to pick out relevant blogs or tweets to analyse.
 
-Social media “exposure”, as a form of advertising that could also include organic conversation about the brand, could be measured and included into the choice model as a product specific attribute that changes over time (Liu & Lopez 2016). This could also be further broken down into positive or negative exposure based on sentiment analysis of the social media content. This could further be extended to exposure to nutritional social media discussions such as sugar and caffeine (as in Liu & Lopez 2016), or to ingredients, flavours or other product attributes. 
+There are clearly some limitations of using social media in this type of analysis, and monitoring sentiment on social media does not always lead to robust predictions. Consumers that regularly access social media sites are a growing proportion across age groups, but social media exposure is likely to be more impactful for specific age groups (Correa, Hinsley and De Zuniga, 2010). For an analyst looking at data from a specific retailer or manufacturer, additional data sources should be analysed for the specific industry and category. Twitter data may be more applicable in a Business-to-Consumer context than a Business-to-Business context, for example, particularly for a business whose target consumers are from younger age groups. It seems to be likely that social data will be increasingly used for retail analytics in all fields over the coming years.
 
-Social media data could also be used to complement the outcomes of the statistical analysis. If the model shows high absolute brand choice price elasticity to a competitor brand, then qualitative analysis of social media data, the conversations that consumers are having when the mention the two brands, could identify what features consumers see as important. Data science techniques such as word embedding (Golberg & Levy 2014) could be used here to identify language that corresponds to brand-switching, to pick out relevant blogs or tweets to analyse.
+#Further Choice Model Applications
 
-There are clearly some limitations of using social media in this analysis, and monitoring sentiment on social media does not always lead to robust predictions. Consumers that regularly access social media sites are a growing proportion across age groups, but social media exposure is likely to be more impactful for specific age groups (Correa, Hinsley and De Zuniga 2010). 
+Choice models can also be used outside of the retail space, for example to model how people choose: a profession (Boskin, 1974), a house and mode of commute (Pinjari et al, 2011), where to attend college (Long, 2004), choice of vehicle (Berkovec, 1985). The important considerations to take when deciding whether to use a choice model include:
 
-##Conclusion
+* Whether the analyst has access to the information of available alternatives (e.g. what other cars are on the market)
+*	Whether a high percentage of the variables are available on which the individuals are expected to make their decisions (e.g. the price, number of doors)
+* Whether the relevant decision making behaviours can be modelled or proxied sufficiently (e.g. whether there is information on the existence of, or values for reference prices and thresholds in the situation)
+* Whether there are enough individuals, with data for multiple choices over time, to make the analysis statistically significant
 
-Before the introduction of panel scanner data, the modelling of consumer choice had been largely dominated by psychological and sociological theory. The future of consumer choice research should be data-driven, rooted in the known principles of psychology, but also coherent to business practitioners. The academic fields are already starting to form a symbiotic relationship where each informs the other to build strong and predictive models of consumer choice, and professional agencies are working on bringing those insights to business practitioners. As the field progresses, these links will likely tighten, and additional data sources will be added more and more from social media and other modern platforms.
+#Future Business Usage
 
-Consumer choice models are powerful tools, and can be beneficial to both retailers and manufacturers while deciding on the elements of the marketing mix, but care must be taken that the models are constructed meaningfully, and explained correctly and intuitively to business practitioners. As in all statistical enterprises, the quality of the model is limited by the quality and quantity of the input data. The analyst should strive as much as possible to have a full list of variables as discussed. There are many decisions that should be taken when producing a model of consumer choice, and close attention should be paid to the impact of those decisions, from data preprocessing, model specification, and visualisation of results.
+Evidence has shown that marketing executives often make price promotion decisions intuitively rather than relying on the outputs of the empirical methods discussed above (Bogomolova, Szabo & Kennedy, 2017). Many of the theoretical and academic approaches are highly complex, have complex outcomes, and can use esoteric language. These two facts are very likely linked. The outcomes of retail modelling approaches must be clear and actionable, and ideally the methodology used to achieve those outcomes must be understandable (Neslin et al., 1994). There is empirical evidence that analysing consumer data has a positive impact on company financial performance (Germann et al., 2014). It is therefore the difficult but critical job of the analyst to ensure that the outputs are meaningful, using the clout and visualisation framework may help here, or displaying visual simulations of changes to the marketing mix.
 
-##References
+Before the introduction of panel scanner data, the modelling of consumer choice had been largely dominated by psychological and sociological theory. The future of consumer choice research is likely be data-driven, rooted in the known principles of psychology, but also coherent to retail professionals. The academic fields are already starting to form a symbiotic relationship where each informs the other to build strong and predictive models of consumer choice, and professional agencies are working on bringing those insights to retail professionals. As the field progresses, these links will likely tighten, and additional data sources will be added more and more from social media and other modern platforms.
+
+Consumer choice models are likely to continue to be used to estimate elasticities and understand in-store consumer behaviour. As mentioned, there have been extensions to online behaviour, but choice models must also find their place alongside algorithms that are becoming common in the industry such as real-time pricing algorithms, next best offer or action models, and website analytics. Businesses across retail and many other industries are becoming more algorithm focused. A clear understanding of the business value, and applicable use cases for these aglorithms will be increasingly important for any analyst. 
+
+#Conclusion
+
+Consumer choice models, as illustrated by the CSD example in this report, are powerful tools that can be highly beneficial to both retailers and manufacturers while deciding on the elements of the marketing mix. However, care must be taken that the models are constructed meaningfully, and explained correctly and intuitively to retail professionals. As in all statistical enterprises, the quality of the model is limited by the quality and quantity of the input data. The analyst should strive as much as possible to have a full set of variables, calculate additional variables where appropriate, and use additional data sources if and only if they are likely to add value. There are many decisions that should be taken when producing a model of consumer choice, and close attention should be paid to the impact of those decisions, from data preprocessing, to model specification, and meaningful visualisation of results.
+
+#References
 
 Andrews, R.L. and Currim, I.S., (2005) An experimental investigation of scanner data preparation strategies for consumer choice models. *International Journal of Research in Marketing*. 22(3), 319-331.
 
-Bijmolt, T.H., Heerde, H.J.V. and Pieters, R.G. (2005) New empirical generalizations on the determinants of price elasticity. *Journal of Marketing Research*. 42(2), 141-156.
+Bijmolt, T.H., Van Heerde, H.J. and Pieters, R.G. (2005) New empirical generalizations on the determinants of price elasticity. *Journal of Marketing Research*. 42(2), 141-156.
 
 Bogomolova, S., Szabo, M. and Kennedy, R., (2017) Retailers' and manufacturers' price-promotion decisions: Intuitive or evidence-based?. *Journal of Business Research*. 76, 189-200.
 
@@ -640,7 +656,7 @@ Fader, P.S. and Hardie, B.G. (1996) Modeling consumer choice among SKUs. *Journa
 
 Germann et al. (2014) Do Retailers Benefit from Deploying Customer Analytics? *Journal of Retailing*. 90(4), 587–593.
 
-Google Ngrams, (2008) *Representation of frequency of the terms "marketing science" and "UPC Scanner" in the Google ngram corpus from 1970 to 2008, digital image of data, Google Ngrams* Available from: https://books.google.com/ngrams/graph?content=UPC+scanner%2Cmarketing+science&year_start=1970&year_end=2008&corpus=15&smoothing=2&share=&direct_url=t1%3B%2CUPC%20scanner%3B%2Cc0%3B.t1%3B%2Cmarketing%20science%3B%2Cc0 [Accessed 10th August 2017]
+Google Ngrams, (2008) *Representation of frequency of the terms "marketing science" and "UPC Scanner" in the Google ngram corpus from 1970 to 2008, digital image of data, Google Ngrams* Available from: https://books.google.com/ngrams/graph?content=UPC+scanner%2Cmarketing+science&year_start=1970&year_end=2008&corpus=15&smoothing=2&share= [Accessed 10th August 2017]
 
 Guadagni, P.M. and Little, J.D. (1983) A Logit Model of Brand Choice Calibrated on Scanner Data. *Marketing Science*, 2(3). 203–238.
 
@@ -688,7 +704,9 @@ Shankar V. & Krishnamurthi, L. (1996) Relating price sensitivity to retailer pro
 
 Srinivasan, S., Pauwels, K., Hanssens, D.M. and Dekimpe, M.G. (2004) Do promotions benefit manufacturers, retailers, or both? *Management Science*. 50(5), 617-629.
 
-Van Heerde, H.J., Mela, C.F. and Manchanda, P., (2004) The dynamic effect of innovation on market structure. *Journal of Marketing Research*. 41(2), 166-183.
+Van Heerde, H.J., Leeflang, P.S. and Wittink, D.R. (2004) Decomposing the sales promotion bump with store data. *Marketing Science*. 23(3), 317-334.
+
+Van Heerde, H.J., Mela, C.F. and Manchanda, P. (2004) The dynamic effect of innovation on market structure. *Journal of Marketing Research*. 41(2), 166-183.
 
 Walsh, J.W., (1995) Flexibility in consumer purchasing for uncertain future tastes. *Marketing Science*. 14(2), 148-165.
 
@@ -708,12 +726,30 @@ kable(sharetablesorted, row.names = FALSE)
 
 ##Appendix B
 
-```{r appB, cache=FALSE}
-tabletoshow <- mlogittotable(csds.ml)
+###Universal Coefficients
+
+```{r appB1, cache=FALSE}
+tabletoshow <- mlogittotable(csds.ml, keys=rownames(summary(csds.ml)$CoefTable)[20:22])
 tabletoshow$variables <- as.character(tabletoshow$variables)
 tabletoshow$variables <- gsubfn(".", list(":" = " - "), tabletoshow$variables)
 kable(tabletoshow)
 ```
+
+Signif. codes:  0 ‘\*\*\*’ 0.001 ‘\*\*’ 0.01 ‘\*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+###Product Specific Coefficients
+
+```{r appB2, cache=FALSE}
+alt_keys <- rownames(summary(csds.ml)$CoefTable)[c(1:10,23:60)]
+alt_keys <- sort(alt_keys)
+tabletoshow <- mlogittotable(csds.ml, keys=alt_keys)
+tabletoshow$variables <- as.character(tabletoshow$variables)
+tabletoshow$variables <- gsubfn(".", list(":" = " - "), tabletoshow$variables)
+kable(tabletoshow)
+```
+
+Signif. codes:  0 ‘\*\*\*’ 0.001 ‘\*\*’ 0.01 ‘\*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
 
 \newpage
 
@@ -730,12 +766,15 @@ $$-1 * \frac{\beta_{price} 1/n\sum{P_{i,h,t}P_{j,h,t}} \overline{price_{j}}}{1/n
 
 Where $P_{i}$ is the vector of probabilities that each household h chose product i at the training shopping trip t, which is estimated as part of the multinomial logit model, $\overline{price_i}$ is the average price of product i. These elasticites are calculated at the average price, as opposed to calculating all the individual elasticities and averaging them.
 
+Equations summarised from Sismeiro, (2017).
+
 \newpage
 
 ##Appendix D - Calculated Elasticities
 
 ```{r cache=FALSE}
 names(elastdf) <- paste("p",1:20)
+rownames(elastdf) <- paste("p",1:20)
 kable(elastdf[,1:10])
 ```
 
@@ -745,6 +784,8 @@ kable(elastdf[,11:20])
 
 Where "p i" refers to the ith product in the below table, ordered by share of choice:
 
+\newpage
+
 ```{r}
-kable(data.frame(number= paste("p",1:20), product = rownames(elastdf)))
+kable(data.frame(number= paste("p",1:20), product = rownames(elastdf_cv)))
 ```
